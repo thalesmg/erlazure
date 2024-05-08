@@ -28,8 +28,38 @@
 -module(test_utils).
 -author("Dmitry Kataskin").
 
-%% API
--export([append_ticks/1, get_ticks/0, read_file/1]).
+-compile(export_all).
+-compile(nowarn_export_all).
+
+-define(DEFAULT_TCP_SERVER_CHECK_AVAIL_TIMEOUT, 1000).
+
+all(Module) ->
+    lists:usort([
+        F
+     || {F, 1} <- Module:module_info(exports),
+        string:substr(atom_to_list(F), 1, 2) == "t_"
+    ]).
+
+-spec is_tcp_server_available(
+    Host :: inet:socket_address() | inet:hostname(),
+    Port :: inet:port_number()
+) -> boolean.
+is_tcp_server_available(Host, Port) ->
+    is_tcp_server_available(Host, Port, ?DEFAULT_TCP_SERVER_CHECK_AVAIL_TIMEOUT).
+
+-spec is_tcp_server_available(
+    Host :: inet:socket_address() | inet:hostname(),
+    Port :: inet:port_number(),
+    Timeout :: integer()
+) -> boolean.
+is_tcp_server_available(Host, Port, Timeout) ->
+    case gen_tcp:connect(Host, Port, [], Timeout) of
+        {ok, Socket} ->
+            gen_tcp:close(Socket),
+            true;
+        {error, _} ->
+            false
+    end.
 
 append_ticks(Name) ->
         Name ++ integer_to_list(get_ticks()).
