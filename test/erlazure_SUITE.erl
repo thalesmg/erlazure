@@ -118,3 +118,10 @@ t_blob_storage_smoke_test(Config) ->
     %% Delete container
     ?assertMatch({ok, deleted}, erlazure:delete_container(Pid, Container)),
     ok.
+
+%% Basic smoke test to check that we can pass already wrapped keys to `erlazure:start`.
+t_blob_storage_wrapped_key(Config) ->
+    Endpoint = ?config(endpoint, Config),
+    {ok, Pid} = erlazure:start(#{account => ?ACCOUNT, key => ?KEY, endpoint => Endpoint}),
+    ?assertMatch({[], _}, erlazure:list_containers(Pid)),
+    ok.

@@ -83,7 +83,7 @@
 
 -type init_opts() :: #{
     account := string(),
-    key := string(),
+    key := string() | function(),
     endpoint => string()
 }.
 -type state_opts() :: #{
@@ -97,8 +97,9 @@
 %%====================================================================
 
 -spec start(init_opts()) -> gen_server:start_ret().
-start(Opts) ->
-        gen_server:start_link(?MODULE, Opts, []).
+start(InitOpts0) ->
+        InitOpts = ensure_wrapped_key(InitOpts0),
+        gen_server:start_link(?MODULE, InitOpts, []).
 
 -spec start(string(), string()) -> {ok, pid()}.
 start(Account, Key) ->
@@ -828,7 +829,7 @@ get_headers_string(Service, Headers) ->
 
 -spec sign_string(base64:ascii_string(), string()) -> binary().
 sign_string(Key, StringToSign) ->
-        hmac(base64:decode(Key), StringToSign).
+        hmac(base64:decode(unwrap(Key)), StringToSign).
 
 build_uri_base(_Service, #state{options = #{endpoint := Endpoint}}) when Endpoint =/= undefined ->
         Endpoint;
@@ -1006,6 +1007,26 @@ parse_init_opts(InitOpts) ->
     Endpoint = maps:get(endpoint, InitOpts, undefined),
     #{ endpoint => Endpoint
      }.
+
+unwrap(Fun) when is_function(Fun) ->
+    %% handle potentially nested functions
+    unwrap(Fun());
+unwrap(V) ->
+    V.
+
+wrap(V) ->
+    fun() ->
+            V
+    end.
+
+-spec ensure_wrapped_key(init_opts()) -> init_opts().
+ensure_wrapped_key(#{key := Key} = InitOpts) ->
+    case is_function(Key) of
+        true ->
+            InitOpts;
+        false ->
+            InitOpts#{key := wrap(Key)}
+    end.
 
 %%====================================================================
 %% Tests
