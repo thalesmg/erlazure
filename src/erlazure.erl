@@ -40,7 +40,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start/2]).
+-export([start/1, start/2]).
 
 %% Queue API
 -export([list_queues/1, list_queues/2, list_queues/3]).
@@ -81,15 +81,28 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--record(state, { account = "", key = "", options = [], param_specs = [] }).
+-type init_opts() :: #{
+    account := string(),
+    key := string(),
+    endpoint => string()
+}.
+-type state_opts() :: #{
+    endpoint := undefined | string()
+}.
+
+-record(state, { account = "", key = "", options = #{}, param_specs = [] }).
 
 %%====================================================================
 %% API
 %%====================================================================
 
+-spec start(init_opts()) -> gen_server:start_ret().
+start(Opts) ->
+        gen_server:start_link(?MODULE, Opts, []).
+
 -spec start(string(), string()) -> {ok, pid()}.
 start(Account, Key) ->
-        gen_server:start_link(?MODULE, {Account, Key}, []).
+        start(#{account => Account, key => Key}).
 
 %%====================================================================
 %% Queue
@@ -323,16 +336,21 @@ delete_table(Pid, TableName) when is_list(TableName) ->
 %% gen_server callbacks
 %%====================================================================
 
-init({Account, Key}) ->
+init(InitOpts) ->
+        #{ account := Account
+         , key := Key
+         } = InitOpts,
+        StateOpts = parse_init_opts(InitOpts),
         {ok, #state { account = Account,
                       key = Key,
+                      options = StateOpts,
                       param_specs = get_req_param_specs() }}.
 
 % List queues
 handle_call({list_queues, Options}, _From, State) ->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{params, [{comp, list}] ++ Options}],
-        ReqContext = new_req_context(?queue_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {?http_ok, Body} = execute_request(ServiceContext, ReqContext),
         ParseResult = erlazure_queue:parse_queue_list(Body),
@@ -345,7 +363,7 @@ handle_call({set_queue_acl, Queue, SignedId=#signed_id{}, Options}, _From, State
                       {path, string:to_lower(Queue)},
                       {body, erlazure_queue:get_request_body(set_queue_acl, SignedId)},
                       {params, [{comp, acl}] ++ Options}],
-        ReqContext = new_req_context(?queue_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
         return_response(Code, Body, State, ?http_no_content, created);
@@ -355,7 +373,7 @@ handle_call({get_queue_acl, Queue, Options}, _From, State) ->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{path, string:to_lower(Queue)},
                       {params, [{comp, acl}] ++ Options}],
-        ReqContext = new_req_context(?queue_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {?http_ok, Body} = execute_request(ServiceContext, ReqContext),
         ParseResult = erlazure_queue:parse_queue_acl_response(Body),
@@ -367,7 +385,7 @@ handle_call({create_queue, Queue, Options}, _From, State) ->
         ReqOptions = [{method, put},
                       {path, string:to_lower(Queue)},
                       {params, Options}],
-        ReqContext = new_req_context(?queue_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {Code, _Body} = execute_request(ServiceContext, ReqContext),
         case Code of
@@ -383,7 +401,7 @@ handle_call({delete_queue, Queue, Options}, _From, State) ->
         ReqOptions = [{method, delete},
                       {path, string:to_lower(Queue)},
                       {params, Options}],
-        ReqContext = new_req_context(?queue_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
         return_response(Code, Body, State, ?http_no_content, deleted);
@@ -395,7 +413,7 @@ handle_call({put_message, Queue, Message, Options}, _From, State) ->
                       {path, lists:concat([string:to_lower(Queue), "/messages"])},
                       {body, erlazure_queue:get_request_body(put_message, Message)},
                       {params, Options}],
-        ReqContext = new_req_context(?queue_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
         return_response(Code, Body, State, ?http_created, created);
@@ -405,7 +423,7 @@ handle_call({get_messages, Queue, Options}, _From, State) ->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{path, string:to_lower(Queue) ++ "/messages"},
                       {params, Options}],
-        ReqContext = new_req_context(?queue_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {?http_ok, Body} = execute_request(ServiceContext, ReqContext),
         {reply, erlazure_queue:parse_queue_messages_list(Body), State};
@@ -415,7 +433,7 @@ handle_call({peek_messages, Queue, Options}, _From, State) ->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{path, string:to_lower(Queue) ++ "/messages"},
                       {params, [{peek_only, true}] ++ Options}],
-        ReqContext = new_req_context(?queue_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {?http_ok, Body} = execute_request(ServiceContext, ReqContext),
         {reply, erlazure_queue:parse_queue_messages_list(Body), State};
@@ -426,7 +444,7 @@ handle_call({delete_message, Queue, MessageId, PopReceipt, Options}, _From, Stat
         ReqOptions = [{method, delete},
                       {path, lists:concat([string:to_lower(Queue), "/messages/", MessageId])},
                       {params, [{pop_receipt, PopReceipt}] ++ Options}],
-        ReqContext = new_req_context(?queue_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
         return_response(Code, Body, State, ?http_no_content, deleted);
@@ -437,7 +455,7 @@ handle_call({clear_messages, Queue, Options}, _From, State) ->
         ReqOptions = [{method, delete},
                       {path, string:to_lower(Queue) ++ "/messages"},
                       {params, Options}],
-        ReqContext = new_req_context(?queue_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
         return_response(Code, Body, State, ?http_no_content, deleted);
@@ -451,7 +469,7 @@ handle_call({update_message, Queue, UpdatedMessage=#queue_message{}, VisibilityT
                       {path, lists:concat([string:to_lower(Queue), "/messages/", UpdatedMessage#queue_message.id])},
                       {body, erlazure_queue:get_request_body(update_message, UpdatedMessage#queue_message.text)},
                       {params, Params ++ Options}],
-        ReqContext = new_req_context(?queue_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
         return_response(Code, Body, State, ?http_no_content, updated);
@@ -460,7 +478,7 @@ handle_call({update_message, Queue, UpdatedMessage=#queue_message{}, VisibilityT
 handle_call({list_containers, Options}, _From, State) ->
         ServiceContext = new_service_context(?blob_service, State),
         ReqOptions = [{params, [{comp, list}] ++ Options}],
-        ReqContext = new_req_context(?blob_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {?http_ok, Body} = execute_request(ServiceContext, ReqContext),
         {ok, Containers} = erlazure_blob:parse_container_list(Body),
@@ -472,7 +490,7 @@ handle_call({create_container, Name, Options}, _From, State) ->
         ReqOptions = [{method, put},
                       {path, Name},
                       {params, [{res_type, container}] ++ Options}],
-        ReqContext = new_req_context(?blob_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?blob_service, ReqOptions, State),
         {Code, Body} = execute_request(ServiceContext, ReqContext),
         case Code of
           ?http_created -> {reply, {ok, created}, State};
@@ -485,7 +503,7 @@ handle_call({delete_container, Name, Options}, _From, State) ->
         ReqOptions = [{method, delete},
                       {path, Name},
                       {params, [{res_type, container}] ++ Options}],
-        RequestContext = new_req_context(?blob_service, State#state.account, State#state.param_specs, ReqOptions),
+        RequestContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, RequestContext),
         return_response(Code, Body, State, ?http_accepted, deleted);
@@ -499,7 +517,7 @@ handle_call({lease_container, Name, Mode, Options}, _From, State) ->
         ReqOptions = [{method, put},
                       {path, Name},
                       {params, Params ++ Options}],
-        ReqContext = new_req_context(?blob_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
         return_response(Code, Body, State, ?http_accepted, deleted);
@@ -511,7 +529,7 @@ handle_call({list_blobs, Name, Options}, _From, State) ->
                   {res_type, container}],
         ReqOptions = [{path, Name},
                       {params, Params ++ Options}],
-        ReqContext = new_req_context(?blob_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {?http_ok, Body} = execute_request(ServiceContext, ReqContext),
         {ok, Blobs} = erlazure_blob:parse_blob_list(Body),
@@ -524,7 +542,7 @@ handle_call({put_blob, Container, Name, Type = block_blob, Data, Options}, _From
                       {path, lists:concat([Container, "/", Name])},
                       {body, Data},
                       {params, [{blob_type, Type}] ++ Options}],
-        ReqContext = new_req_context(?blob_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?blob_service, ReqOptions, State),
         ReqContext1 = case proplists:get_value(content_type, Options) of
                         undefined    -> ReqContext#req_context{ content_type = "application/octet-stream" };
                         ContentType  -> ReqContext#req_context{ content_type = ContentType }
@@ -541,7 +559,7 @@ handle_call({put_blob, Container, Name, Type = page_blob, ContentLength, Options
         ReqOptions = [{method, put},
                       {path, lists:concat([Container, "/", Name])},
                       {params, Params ++ Options}],
-        ReqContext = new_req_context(?blob_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
         return_response(Code, Body, State, ?http_created, created);
@@ -551,7 +569,7 @@ handle_call({get_blob, Container, Blob, Options}, _From, State) ->
         ServiceContext = new_service_context(?blob_service, State),
         ReqOptions = [{path, lists:concat([Container, "/", Blob])},
                       {params, Options}],
-        ReqContext = new_req_context(?blob_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
         case Code of
@@ -559,7 +577,7 @@ handle_call({get_blob, Container, Blob, Options}, _From, State) ->
             {reply, {ok, Body}, State};
           ?http_partial_content->
             {reply, {ok, Body}, State};
-          _ -> {reply, {error, Body}, State}            
+          _ -> {reply, {error, Body}, State}
         end;
 
 % Snapshot blob
@@ -568,7 +586,7 @@ handle_call({snapshot_blob, Container, Blob, Options}, _From, State) ->
         ReqOptions = [{method, put},
                       {path, lists:concat([Container, "/", Blob])},
                       {params, [{comp, snapshot}] ++ Options}],
-        ReqContext = new_req_context(?blob_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
         return_response(Code, Body, State, ?http_created, created);
@@ -579,7 +597,7 @@ handle_call({copy_blob, Container, Blob, Source, Options}, _From, State) ->
         ReqOptions = [{method, put},
                       {path, lists:concat([Container, "/", Blob])},
                       {params, [{blob_copy_source, Source}] ++ Options}],
-        ReqContext = new_req_context(?blob_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
         return_response(Code, Body, State, ?http_accepted, created);
@@ -590,7 +608,7 @@ handle_call({delete_blob, Container, Blob, Options}, _From, State) ->
         ReqOptions = [{method, delete},
                       {path, lists:concat([Container, "/", Blob])},
                       {params, Options}],
-        ReqContext = new_req_context(?blob_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
         return_response(Code, Body, State, ?http_accepted, deleted);
@@ -604,7 +622,7 @@ handle_call({put_block, Container, Blob, BlockId, Content, Options}, _From, Stat
                       {path, lists:concat([Container, "/", Blob])},
                       {body, Content},
                       {params, Params ++ Options}],
-        ReqContext = new_req_context(?blob_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
         return_response(Code, Body, State, ?http_created, created);
@@ -616,7 +634,7 @@ handle_call({put_block_list, Container, Blob, BlockRefs, Options}, _From, State)
                       {path, lists:concat([Container, "/", Blob])},
                       {body, erlazure_blob:get_request_body(BlockRefs)},
                       {params, [{comp, "blocklist"}] ++ Options}],
-        ReqContext = new_req_context(?blob_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
         return_response(Code, Body, State, ?http_created, created);
@@ -626,7 +644,7 @@ handle_call({get_block_list, Container, Blob, Options}, _From, State) ->
         ServiceContext = new_service_context(?blob_service, State),
         ReqOptions = [{path, lists:concat([Container, "/", Blob])},
                       {params, [{comp, "blocklist"}] ++ Options}],
-        ReqContext = new_req_context(?blob_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {?http_ok, Body} = execute_request(ServiceContext, ReqContext),
         {ok, BlockList} = erlazure_blob:parse_block_list(Body),
@@ -644,7 +662,7 @@ handle_call({acquire_blob_lease, Container, Blob, ProposedId, Duration, Options}
         ReqOptions = [{method, put},
                       {path, lists:concat([Container, "/", Blob])},
                       {params, Params ++ Options}],
-        ReqContext = new_req_context(?blob_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
         return_response(Code, Body, State, ?http_created, acquired);
@@ -654,7 +672,7 @@ handle_call({list_tables, Options}, _From, State) ->
         ServiceContext = new_service_context(?table_service, State),
         ReqOptions = [{path, "Tables"},
                       {params, Options}],
-        ReqContext = new_req_context(?table_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?table_service, ReqOptions, State),
 
         {?http_ok, Body} = execute_request(ServiceContext, ReqContext),
         {reply, {ok, erlazure_table:parse_table_list(Body)}, State};
@@ -665,13 +683,13 @@ handle_call({new_table, TableName}, _From, State) ->
         ReqOptions = [{path, "Tables"},
                       {method, post},
                       {body, jsx:encode([{<<"TableName">>, TableName}])}],
-        ReqContext = new_req_context(?table_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?table_service, ReqOptions, State),
         ReqContext1 = ReqContext#req_context{ content_type = ?json_content_type },
         {Code, Body} = execute_request(ServiceContext, ReqContext1),
         return_response(Code, Body, State, ?http_created, created);
 
 % Get host
-handle_call({get_host, Service, Domain}, _From, State) -> 
+handle_call({get_host, Service, Domain}, _From, State) ->
         Account = State#state.account,
         Host    = lists:concat([Account, ".", erlang:atom_to_list(Service), Domain]),
         {reply, Host, State};
@@ -681,7 +699,7 @@ handle_call({delete_table, TableName}, _From, State) ->
         ServiceContext = new_service_context(?table_service, State),
         ReqOptions = [{path, io:format("Tables('~s')", [TableName])},
                       {method, delete}],
-        ReqContext = new_req_context(?table_service, State#state.account, State#state.param_specs, ReqOptions),
+        ReqContext = new_req_context(?table_service, ReqOptions, State),
         {?http_no_content, _} = execute_request(ServiceContext, ReqContext),
         {reply, {ok, deleted}, State}.
 
@@ -745,21 +763,28 @@ execute_request(ServiceContext = #service_context{}, ReqContext = #req_context{}
             {Code, Body};
 
           {ok, {{_, _, _}, _, Body}} ->
-            try get_error_code(Body) of
-              ErrorCodeAtom -> {error, ErrorCodeAtom}
-              catch
-                _ -> {error, Body}
-              end
-           end.
+            get_error_code(Body)
+        end.
 
 get_error_code(Body) ->
+         try do_get_error_code(Body) of
+             ErrorCodeContext -> {error, ErrorCodeContext}
+         catch
+             _:_ -> {error, #{raw => Body}}
+         end.
+
+do_get_error_code(Body) ->
         {ParseResult, _} = xmerl_scan:string(binary_to_list(Body)),
         ErrorContent = ParseResult#xmlElement.content,
-        ErrorContentHead = hd(ErrorContent),
-        CodeContent = ErrorContentHead#xmlElement.content,
-        CodeContentHead = hd(CodeContent),
-        ErrorCodeText = CodeContentHead#xmlText.value,
-        list_to_atom(ErrorCodeText).
+        Code =
+            lists:flatten([Txt
+                           || #xmlElement{name = 'Code', content = Cs} <- ErrorContent,
+                              #xmlText{value = Txt} <- Cs]),
+        Message =
+            lists:flatten([Txt
+                           || #xmlElement{name = 'Message', content = Cs} <- ErrorContent,
+                              #xmlText{value = Txt} <- Cs]),
+        #{code => Code, message => Message}.
 
 get_shared_key(Service, Account, Key, HttpMethod, Path, Parameters, Headers) ->
         SignatureString = get_signature_string(Service, HttpMethod, Headers, Account, Path, Parameters),
@@ -805,7 +830,9 @@ get_headers_string(Service, Headers) ->
 sign_string(Key, StringToSign) ->
         hmac(base64:decode(Key), StringToSign).
 
-build_uri_base(Service, Account) ->
+build_uri_base(_Service, #state{options = #{endpoint := Endpoint}}) when Endpoint =/= undefined ->
+        Endpoint;
+build_uri_base(Service, #state{account = Account}) ->
         lists:concat(["https://", get_host(Service, Account), "/"]).
 
 get_host(Service, Account) ->
@@ -903,7 +930,7 @@ new_service_context(?table_service, State=#state{}) ->
                           account = State#state.account,
                           key = State#state.key }.
 
-new_req_context(Service, Account, ParamSpecs, Options) ->
+new_req_context(Service, Options, State) ->
         Method = proplists:get_value(method, Options, get),
         Path = proplists:get_value(path, Options, ""),
         Body = proplists:get_value(body, Options, ""),
@@ -917,10 +944,11 @@ new_req_context(Service, Account, ParamSpecs, Options) ->
                         true -> []
                      end,
 
+        ParamSpecs = State#state.param_specs,
         ReqParams = get_req_uri_params(Params, ParamSpecs),
         ReqHeaders = lists:append([Headers, AddHeaders, get_req_headers(Params, ParamSpecs)]),
 
-        #req_context{ address = build_uri_base(Service, Account),
+        #req_context{ address = build_uri_base(Service, State),
                       path = Path,
                       method = Method,
                       body = Body,
@@ -972,6 +1000,12 @@ return_response(Code, Body, State, ExpectedResponseCode, SuccessAtom) ->
     _ ->
       {reply, {error, Body}, State}
   end.
+
+-spec parse_init_opts(init_opts()) -> state_opts().
+parse_init_opts(InitOpts) ->
+    Endpoint = maps:get(endpoint, InitOpts, undefined),
+    #{ endpoint => Endpoint
+     }.
 
 %%====================================================================
 %% Tests
