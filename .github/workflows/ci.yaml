@@ -1,0 +1,38 @@
+name: ci
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        otp:
+          - '26.2'
+        rebar3:
+          - '3.23'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.1.4
+      - name: setup erlang
+        uses: erlef/setup-beam@v1.17.5
+        with:
+          otp-version: ${{ matrix.otp }}
+          rebar3-version: ${{ matrix.rebar3 }}
+      - name: cache hex deps
+        uses: actions/cache@v4.0.2
+        with:
+          path: ~/.cache/rebar3/hex/hexpm/packages
+          key: ${{ runner.os }}-hex-${{ hashFiles(format('{0}{1}', github.workspace, '/rebar.lock')) }}
+          restore-keys: |
+            ${{ runner.os }}-hex-
+      - name: build
+        run: rebar3 compile
+      - name: eunit
+        run: rebar3 eunit -m erlazure_xml_tests,erlazure_utils_tests,erlazure_queue_tests,erlazure_blob_tests
