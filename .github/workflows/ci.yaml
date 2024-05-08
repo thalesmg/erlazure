@@ -36,3 +36,9 @@ jobs:
         run: make compile
       - name: eunit
         run: make eunit
+      - name: start azurite
+        run: test/start_azurite.sh
+      - name: ct
+        run: make ct
+        env:
+          AZURITE_ENDPOINT: "http://127.0.0.1:10000/"
