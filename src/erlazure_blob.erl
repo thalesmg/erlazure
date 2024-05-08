@@ -166,9 +166,11 @@ parse_block(#xmlElement{ content = Content }, Type) ->
         lists:foldl(FoldFun, #blob_block{ type = Type }, Nodes).
 
 str_to_blob_type("BlockBlob") -> block_blob;
+str_to_blob_type("AppendBlob") -> append_blob;
 str_to_blob_type("PageBlob") -> page_blob.
 
 blob_type_to_str(block_blob) -> "BlockBlob";
+blob_type_to_str(append_blob) -> "AppendBlob";
 blob_type_to_str(page_blob) -> "PageBlob".
 
 block_type_to_node(uncommitted) -> 'Uncommitted';

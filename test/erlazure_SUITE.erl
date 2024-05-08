@@ -125,3 +125,27 @@ t_blob_storage_wrapped_key(Config) ->
     {ok, Pid} = erlazure:start(#{account => ?ACCOUNT, key => ?KEY, endpoint => Endpoint}),
     ?assertMatch({[], _}, erlazure:list_containers(Pid)),
     ok.
+
+%% Basic smoke test for append blob storage operations.
+t_append_blob_smoke_test(Config) ->
+    Endpoint = ?config(endpoint, Config),
+    {ok, Pid} = erlazure:start(#{account => ?ACCOUNT, key => ?KEY, endpoint => Endpoint}),
+    %% Create a container
+    Container = container_name(?FUNCTION_NAME),
+    ?assertMatch({[], _}, erlazure:list_containers(Pid)),
+    ?assertMatch({ok, created}, erlazure:create_container(Pid, Container)),
+    %% Upload some blobs
+    ?assertMatch({ok, created}, erlazure:put_append_blob(Pid, Container, "blob1")),
+    ?assertMatch({ok, appended}, erlazure:append_block(Pid, Container, "blob1", <<"1">>)),
+    ?assertMatch({ok, appended}, erlazure:append_block(Pid, Container, "blob1", <<"\n">>)),
+    ?assertMatch({ok, appended}, erlazure:append_block(Pid, Container, "blob1", <<"2">>)),
+    ?assertMatch({[#cloud_blob{name = "blob1"}], _},
+                 erlazure:list_blobs(Pid, Container)),
+    %% Read back data
+    ?assertMatch({ok, <<"1\n2">>}, erlazure:get_blob(Pid, Container, "blob1")),
+    %% Delete blob
+    ?assertMatch({ok, deleted}, erlazure:delete_blob(Pid, Container, "blob1")),
+    ?assertMatch({[], _}, erlazure:list_blobs(Pid, Container)),
+    %% Delete container
+    ?assertMatch({ok, deleted}, erlazure:delete_container(Pid, Container)),
+    ok.
