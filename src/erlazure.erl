@@ -778,6 +778,8 @@ get_signature_string(Service, HttpMethod, Headers, Account, Path, Parameters) ->
 get_headers_string(Service, Headers) ->
         FoldFun = fun(HeaderName, Acc) ->
                     case lists:keyfind(HeaderName, 1, Headers) of
+                      %% Special case: zero length should be an empty line.
+                      {"Content-Length", "0"} -> lists:concat([Acc, "\n"]);
                       {HeaderName, Value} -> lists:concat([Acc, Value, "\n"]);
                       false -> lists:concat([Acc, "\n"])
                     end
