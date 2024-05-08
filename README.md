@@ -23,7 +23,7 @@ Erlazure requires OTP version R16+.
   * Delete message
   * Clear messages
   * Update message
-  
+
 * Blob storage service
   * List containers
   * Create container
@@ -39,7 +39,7 @@ Erlazure requires OTP version R16+.
   * Put block list
   * Get block list
   * Lease container
-  
+
 * Table storage service
   * List tables
   * New table
@@ -52,6 +52,16 @@ Start an instance of erlazure by calling ```erlazure:start/2``` where **Account*
 {ok, Pid} = erlazure:start(Account, Key)
 ```
 Account and Key are strings.
+
+### Using an emulated service like [Azurite](https://github.com/Azure/Azurite/blob/2bb552e703772b9a57ca713ef271c3c7c624a535/README.md)
+
+```erlang
+%% default dev credentials from Azurite
+Account = "devstoreaccount1".
+Key = "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==".
+%% Mind the trailing slash at the end of the endpoint.
+{ok, Pid} = erlazure:start(#{account => Account, key => Key, endpoint => "http://127.0.0.1:10000/"})
+```
 
 ## Calling Azure services
 Almost each azure services request has three corresponding functions in ```erlazure``` module, the first has minimal set of parameters, the second has additionaly list of ```Options``` and the third has additionaly ```Timeout``` parameter.
