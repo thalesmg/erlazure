@@ -970,3 +970,33 @@ return_response(Code, Body, State, ExpectedResponseCode, SuccessAtom) ->
     _ ->
       {reply, {error, Body}, State}
   end.
+
+%%====================================================================
+%% Tests
+%%====================================================================
+-ifdef(TEST).
+
+-include_lib("eunit/include/eunit.hrl").
+
+sample_error_raw() ->
+    <<"<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Error>\n  <Code>AuthorizationFailure</Code>\n  <Message>Server failed to authenticate the request. Make sure the value of the Authorization header is formed correctly including the signature.\nRequestId:9d2010f6-fe5f-4cc0-ba45-54162b64e1c9\nTime:2024-05-08T14:53:22.751Z</Message>\n</Error>">>.
+
+get_error_code_test_() ->
+    [ { "sample error response",
+        ?_assertMatch(
+          {error, #{ code := "AuthorizationFailure"
+                   , message := "Server failed to authenticate" ++ _
+                   }},
+          get_error_code(sample_error_raw())
+        )
+      }
+    , { "unparseable error"
+      , ?_assertMatch(
+          {error, #{raw := <<"something else">>}},
+          get_error_code(<<"something else">>)
+        )
+      }
+    ].
+
+%% END ifdef(TEST)
+-endif.

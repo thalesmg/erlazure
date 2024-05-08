@@ -33,6 +33,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-hex-
       - name: build
-        run: rebar3 compile
+        run: make compile
       - name: eunit
-        run: rebar3 eunit -m erlazure_xml_tests,erlazure_utils_tests,erlazure_queue_tests,erlazure_blob_tests
+        run: make eunit
