@@ -62,6 +62,8 @@
 -export([lease_container/3, lease_container/4, lease_container/5]).
 -export([list_blobs/2, list_blobs/3, list_blobs/4]).
 -export([put_block_blob/4, put_block_blob/5, put_block_blob/6]).
+-export([put_append_blob/3, put_append_blob/4, put_append_blob/5]).
+-export([append_block/4, append_block/5, append_block/6]).
 -export([put_page_blob/4, put_page_blob/5, put_page_blob/6]).
 -export([get_blob/3, get_blob/4, get_blob/5]).
 -export([snapshot_blob/3, snapshot_blob/4, snapshot_blob/5]).
@@ -241,6 +243,20 @@ put_page_blob(Pid, Container, Name, ContentLength, Options) ->
         put_page_blob(Pid, Container, Name, ContentLength, Options, ?gen_server_call_default_timeout).
 put_page_blob(Pid, Container, Name, ContentLength, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         gen_server:call(Pid, {put_blob, Container, Name, page_blob, ContentLength, Options}, Timeout).
+
+put_append_blob(Pid, Container, Name) ->
+        put_append_blob(Pid, Container, Name, []).
+put_append_blob(Pid, Container, Name, Options) ->
+        put_append_blob(Pid, Container, Name, Options, ?gen_server_call_default_timeout).
+put_append_blob(Pid, Container, Name, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+        gen_server:call(Pid, {put_blob, Container, Name, append_blob, Options}, Timeout).
+
+append_block(Pid, Container, Name, Data) ->
+        append_block(Pid, Container, Name, Data, []).
+append_block(Pid, Container, Name, Data, Options) ->
+        append_block(Pid, Container, Name, Data, Options, ?gen_server_call_default_timeout).
+append_block(Pid, Container, Name, Data, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+        gen_server:call(Pid, {append_block, Container, Name, Data, Options}, Timeout).
 
 list_blobs(Pid, Container) ->
         list_blobs(Pid, Container, []).
@@ -564,6 +580,31 @@ handle_call({put_blob, Container, Name, Type = page_blob, ContentLength, Options
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
         return_response(Code, Body, State, ?http_created, created);
+
+% Put append blob
+handle_call({put_blob, Container, Name, Type = append_blob, Options}, _From, State) ->
+        ServiceContext = new_service_context(?blob_service, State),
+        Params = [{blob_type, Type}],
+        ReqOptions = [{method, put},
+                      {path, lists:concat([Container, "/", Name])},
+                      {params, Params ++ Options}],
+        ReqContext = new_req_context(?blob_service, ReqOptions, State),
+
+        {Code, Body} = execute_request(ServiceContext, ReqContext),
+        return_response(Code, Body, State, ?http_created, created);
+
+% Append block
+handle_call({append_block, Container, Name, Data, Options}, _From, State) ->
+        ServiceContext = new_service_context(?blob_service, State),
+        Params = [{comp, "appendblock"}],
+        ReqOptions = [{method, put},
+                      {path, lists:concat([Container, "/", Name])},
+                      {body, Data},
+                      {params, Params ++ Options}],
+        ReqContext = new_req_context(?blob_service, ReqOptions, State),
+
+        {Code, Body} = execute_request(ServiceContext, ReqContext),
+        return_response(Code, Body, State, ?http_created, appended);
 
 % Get blob
 handle_call({get_blob, Container, Blob, Options}, _From, State) ->
