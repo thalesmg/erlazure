@@ -457,9 +457,10 @@ handle_call({update_message, Queue, UpdatedMessage=#queue_message{}, VisibilityT
         return_response(Code, Body, State, ?http_no_content, updated);
 
 % List containers
-handle_call({list_containers, Options}, _From, State) ->
+handle_call({list_containers, Options0}, _From, State) ->
         ServiceContext = new_service_context(?blob_service, State),
-        ReqOptions = [{params, [{comp, list}] ++ Options}],
+        {ReqOpts, Options} = get_req_opts(Options0),
+        ReqOptions = [{params, [{comp, list}] ++ Options} | ReqOpts],
         ReqContext = new_req_context(?blob_service, State#state.account, State#state.param_specs, ReqOptions),
 
         {?http_ok, Body} = execute_request(ServiceContext, ReqContext),
@@ -467,11 +468,12 @@ handle_call({list_containers, Options}, _From, State) ->
         {reply, Containers, State};
 
 % Create a container
-handle_call({create_container, Name, Options}, _From, State) ->
+handle_call({create_container, Name, Options0}, _From, State) ->
         ServiceContext = new_service_context(?blob_service, State),
+        {ReqOpts, Options} = get_req_opts(Options0),
         ReqOptions = [{method, put},
                       {path, Name},
-                      {params, [{res_type, container}] ++ Options}],
+                      {params, [{res_type, container}] ++ Options} | ReqOpts],
         ReqContext = new_req_context(?blob_service, State#state.account, State#state.param_specs, ReqOptions),
         {Code, Body} = execute_request(ServiceContext, ReqContext),
         case Code of
@@ -518,12 +520,13 @@ handle_call({list_blobs, Name, Options}, _From, State) ->
         {reply, Blobs, State};
 
 % Put block blob
-handle_call({put_blob, Container, Name, Type = block_blob, Data, Options}, _From, State) ->
+handle_call({put_blob, Container, Name, Type = block_blob, Data, Options0}, _From, State) ->
         ServiceContext = new_service_context(?blob_service, State),
+        {ReqOpts, Options} = get_req_opts(Options0),
         ReqOptions = [{method, put},
                       {path, lists:concat([Container, "/", Name])},
                       {body, Data},
-                      {params, [{blob_type, Type}] ++ Options}],
+                      {params, [{blob_type, Type}] ++ Options} | ReqOpts],
         ReqContext = new_req_context(?blob_service, State#state.account, State#state.param_specs, ReqOptions),
         ReqContext1 = case proplists:get_value(content_type, Options) of
                         undefined    -> ReqContext#req_context{ content_type = "application/octet-stream" };
@@ -559,7 +562,7 @@ handle_call({get_blob, Container, Blob, Options}, _From, State) ->
             {reply, {ok, Body}, State};
           ?http_partial_content->
             {reply, {ok, Body}, State};
-          _ -> {reply, {error, Body}, State}            
+          _ -> {reply, {error, Body}, State}
         end;
 
 % Snapshot blob
@@ -671,7 +674,7 @@ handle_call({new_table, TableName}, _From, State) ->
         return_response(Code, Body, State, ?http_created, created);
 
 % Get host
-handle_call({get_host, Service, Domain}, _From, State) -> 
+handle_call({get_host, Service, Domain}, _From, State) ->
         Account = State#state.account,
         Host    = lists:concat([Account, ".", erlang:atom_to_list(Service), Domain]),
         {reply, Host, State};
@@ -734,6 +737,7 @@ execute_request(ServiceContext = #service_context{}, ReqContext = #req_context{}
 
         %% Fiddler
         %% httpc:set_options([{ proxy, {{"localhost", 9999}, []}}]),
+        'Elixir.IO':inspect(erlazure_http:create_request(ReqContext, [AuthHeader | Headers1])),
 
         Response = httpc:request(ReqContext#req_context.method,
                                  erlazure_http:create_request(ReqContext, [AuthHeader | Headers1]),
@@ -742,19 +746,22 @@ execute_request(ServiceContext = #service_context{}, ReqContext = #req_context{}
         case Response of
           {ok, {{_, Code, _}, _, Body}}
           when Code >= 200, Code =< 206 ->
+            'Elixir.IO':inspect({Code, Body}),
             {Code, Body};
 
-          {ok, {{_, _, _}, _, Body}} ->
+          {ok, {{_, _Code, _}, _, Body}} ->
+            'Elixir.IO':inspect({_Code, Body}),
             try get_error_code(Body) of
               ErrorCodeAtom -> {error, ErrorCodeAtom}
               catch
-                _ -> {error, Body}
+                _:_ -> {error, Body}
               end
            end.
 
 get_error_code(Body) ->
         {ParseResult, _} = xmerl_scan:string(binary_to_list(Body)),
         ErrorContent = ParseResult#xmlElement.content,
+        'Elixir.IO':inspect(ErrorContent),
         ErrorContentHead = hd(ErrorContent),
         CodeContent = ErrorContentHead#xmlElement.content,
         CodeContentHead = hd(CodeContent),
@@ -778,6 +785,7 @@ get_signature_string(Service, HttpMethod, Headers, Account, Path, Parameters) ->
 get_headers_string(Service, Headers) ->
         FoldFun = fun(HeaderName, Acc) ->
                     case lists:keyfind(HeaderName, 1, Headers) of
+                      {"Content-Length", "0"} -> lists:concat([Acc, "\n"]);
                       {HeaderName, Value} -> lists:concat([Acc, Value, "\n"]);
                       false -> lists:concat([Acc, "\n"])
                     end
@@ -841,6 +849,7 @@ canonicalize_resource(Account, Path, Parameters) ->
         SortedParameters = lists:sort(SortFun, Parameters),
         [H | T] = SortedParameters,
         "/" ++ Account ++ "/" ++ Path ++ combine_canonical_param(H, "", "", T).
+        %% "/" ++ Path ++ combine_canonical_param(H, "", "", T).
 
 combine_canonical_param({Param, Value}, Param, Acc, []) ->
         add_value(Value, Acc);
@@ -917,8 +926,13 @@ new_req_context(Service, Account, ParamSpecs, Options) ->
 
         ReqParams = get_req_uri_params(Params, ParamSpecs),
         ReqHeaders = lists:append([Headers, AddHeaders, get_req_headers(Params, ParamSpecs)]),
+        Address = case proplists:get_value(service_address, Options) of
+                      undefined -> build_uri_base(Service, Account);
+                      Address0 -> Address0
+                  end,
+        io:format(user, "\n\n>>>>>>>>>>\n  ~p\n\n", [#{a => Address, o => Options}]),
 
-        #req_context{ address = build_uri_base(Service, Account),
+        #req_context{ address = Address,
                       path = Path,
                       method = Method,
                       body = Body,
@@ -962,6 +976,11 @@ get_req_common_param_specs() ->
          #param_spec{ id = ?req_param_prefix, type = uri, name = "prefix" },
          #param_spec{ id = ?req_param_include, type = uri, name = "include" },
          #param_spec{ id = ?req_param_marker, type = uri, name = "marker" }].
+
+get_req_opts(Options0) ->
+    ReqOptions0 = proplists:get_value(req_opts, Options0, []),
+    Options = proplists:delete(req_opts, Options0),
+    {ReqOptions0, Options}.
 
 return_response(Code, Body, State, ExpectedResponseCode, SuccessAtom) ->
   case Code of
