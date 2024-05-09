@@ -149,3 +149,16 @@ t_append_blob_smoke_test(Config) ->
     %% Delete container
     ?assertMatch({ok, deleted}, erlazure:delete_container(Pid, Container)),
     ok.
+
+%% Test error handling when endpoint is unavailable
+t_blob_failure_to_connect(_Config) ->
+    BadEndpoint = "http://127.0.0.2:65535/",
+    {ok, Pid} = erlazure:start(#{account => ?ACCOUNT, key => ?KEY, endpoint => BadEndpoint}),
+    ?assertMatch({error, {failed_connect, _}}, erlazure:list_containers(Pid)),
+    ?assertMatch({error, {failed_connect, _}}, erlazure:create_container(Pid, "c")),
+    ?assertMatch({error, {failed_connect, _}}, erlazure:delete_container(Pid, "c")),
+    ?assertMatch({error, {failed_connect, _}}, erlazure:put_append_blob(Pid, "c", "b1")),
+    ?assertMatch({error, {failed_connect, _}}, erlazure:put_block_blob(Pid, "c", "b1", <<"a">>)),
+    ?assertMatch({error, {failed_connect, _}}, erlazure:append_block(Pid, "c", "b1", <<"a">>)),
+    ?assertMatch({error, {failed_connect, _}}, erlazure:get_blob(Pid, "c", "b1")),
+    ok.
