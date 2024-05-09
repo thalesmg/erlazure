@@ -31,7 +31,7 @@
 -define(http_created, 201).
 -define(http_accepted, 202).
 -define(http_no_content, 204).
--define(http_partial_content, 206). 
+-define(http_partial_content, 206).
 
 -define(blob_service, blob).
 -define(table_service, table).
@@ -39,7 +39,7 @@
 -define(file_service, file).
 
 -define(queue_service_ver, "2014-02-14").
--define(blob_service_ver, "2014-02-14").
+-define(blob_service_ver, "2024-05-04").
 -define(table_service_ver, "2014-02-14").
 -define(file_service_ver, "2014-02-14").
 
