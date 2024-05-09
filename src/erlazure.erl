@@ -497,9 +497,13 @@ handle_call({list_containers, Options}, _From, State) ->
         ReqOptions = [{params, [{comp, list}] ++ Options}],
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
-        {?http_ok, Body} = execute_request(ServiceContext, ReqContext),
-        {ok, Containers} = erlazure_blob:parse_container_list(Body),
-        {reply, Containers, State};
+        case execute_request(ServiceContext, ReqContext) of
+            {?http_ok, Body} ->
+                {ok, Containers} = erlazure_blob:parse_container_list(Body),
+                {reply, Containers, State};
+            {error, _} = Error ->
+                {reply, Error, State}
+        end;
 
 % Create a container
 handle_call({create_container, Name, Options}, _From, State) ->
@@ -805,7 +809,10 @@ execute_request(ServiceContext = #service_context{}, ReqContext = #req_context{}
             {Code, Body};
 
           {ok, {{_, _, _}, _, Body}} ->
-            get_error_code(Body)
+            get_error_code(Body);
+
+          {error, Error} ->
+            {error, Error}
         end.
 
 get_error_code(Body) ->
