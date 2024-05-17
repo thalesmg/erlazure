@@ -135,12 +135,16 @@ t_append_blob_smoke_test(Config) ->
     ?assertMatch({[], _}, erlazure:list_containers(Pid)),
     ?assertMatch({ok, created}, erlazure:create_container(Pid, Container)),
     %% Upload some blobs
-    ?assertMatch({ok, created}, erlazure:put_append_blob(Pid, Container, "blob1")),
+    Opts = [{content_type, "text/csv"}],
+    ?assertMatch({ok, created}, erlazure:put_append_blob(Pid, Container, "blob1", Opts)),
     ?assertMatch({ok, appended}, erlazure:append_block(Pid, Container, "blob1", <<"1">>)),
     ?assertMatch({ok, appended}, erlazure:append_block(Pid, Container, "blob1", <<"\n">>)),
     ?assertMatch({ok, appended}, erlazure:append_block(Pid, Container, "blob1", <<"2">>)),
+    ListedBlobs = erlazure:list_blobs(Pid, Container),
     ?assertMatch({[#cloud_blob{name = "blob1"}], _},
-                 erlazure:list_blobs(Pid, Container)),
+                 ListedBlobs),
+    {[#cloud_blob{name = "blob1", properties = BlobProps}], _} = ListedBlobs,
+    ?assertMatch(#{content_type := "text/csv"}, maps:from_list(BlobProps)),
     %% Read back data
     ?assertMatch({ok, <<"1\n2">>}, erlazure:get_blob(Pid, Container, "blob1")),
     %% Delete blob

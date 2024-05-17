@@ -592,7 +592,11 @@ handle_call({put_blob, Container, Name, Type = append_blob, Options}, _From, Sta
         ReqOptions = [{method, put},
                       {path, lists:concat([Container, "/", Name])},
                       {params, Params ++ Options}],
-        ReqContext = new_req_context(?blob_service, ReqOptions, State),
+        ReqContext1 = new_req_context(?blob_service, ReqOptions, State),
+        ReqContext = case proplists:get_value(content_type, Options) of
+                       undefined    -> ReqContext1#req_context{ content_type = "application/octet-stream" };
+                       ContentType  -> ReqContext1#req_context{ content_type = ContentType }
+                     end,
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
         return_response(Code, Body, State, ?http_created, created);
