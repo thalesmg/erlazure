@@ -166,3 +166,42 @@ t_blob_failure_to_connect(_Config) ->
     ?assertMatch({error, {failed_connect, _}}, erlazure:append_block(Pid, "c", "b1", <<"a">>)),
     ?assertMatch({error, {failed_connect, _}}, erlazure:get_blob(Pid, "c", "b1")),
     ok.
+
+%% Basic smoke test for block blob storage operations.
+t_put_block(Config) ->
+    Endpoint = ?config(endpoint, Config),
+    {ok, Pid} = erlazure:start(#{account => ?ACCOUNT, key => ?KEY, endpoint => Endpoint}),
+    %% Create a container
+    Container = container_name(?FUNCTION_NAME),
+    ?assertMatch({[], _}, erlazure:list_containers(Pid)),
+    ?assertMatch({ok, created}, erlazure:create_container(Pid, Container)),
+    %% Upload some blocks
+    Opts = [{content_type, "text/csv"}],
+    BlobName = "blob1",
+    ?assertMatch({ok, created}, erlazure:put_block_blob(Pid, Container, BlobName, <<>>, Opts)),
+    %% Note: this short name is important for this test.  It'll produce a base64 string
+    %% that's padded.  That padding must be URL-encoded when sending the request, but not
+    %% when generating the string to sign.
+    BlockId1 = <<"blo1">>,
+    ?assertMatch({ok, created}, erlazure:put_block(Pid, Container, BlobName, BlockId1, <<"a">>)),
+    %% Testing iolists
+    BlockId2 = <<"blo2">>,
+    ?assertMatch({ok, created}, erlazure:put_block(Pid, Container, BlobName, BlockId2, [<<"\n">>, ["b", [$\n]]])),
+    %% Not yet committed.
+    ?assertMatch({ok, <<"">>}, erlazure:get_blob(Pid, Container, BlobName)),
+    %% Committing
+    BlockList1 = [{BlockId1, latest}],
+    ?assertMatch({ok, created}, erlazure:put_block_list(Pid, Container, BlobName, BlockList1)),
+    %% Committed only first block.
+    ?assertMatch({ok, <<"a">>}, erlazure:get_blob(Pid, Container, BlobName)),
+    %% Block 2 was dropped after committing.
+    ?assertMatch({[#blob_block{id = "blo1"}], _}, erlazure:get_block_list(Pid, Container, BlobName)),
+    BlockId3 = <<"blo3">>,
+    ?assertMatch({ok, created}, erlazure:put_block(Pid, Container, BlobName, BlockId3, [<<"\n">>, ["b", [$\n]]])),
+    %% Commit both blocks
+    BlockList2 = [{BlockId1, committed}, {BlockId3, uncommitted}],
+    ?assertMatch({ok, created}, erlazure:put_block_list(Pid, Container, BlobName, BlockList2)),
+    ?assertMatch({ok, <<"a\nb\n">>}, erlazure:get_blob(Pid, Container, BlobName)),
+    %% Delete container
+    ?assertMatch({ok, deleted}, erlazure:delete_container(Pid, Container)),
+    ok.

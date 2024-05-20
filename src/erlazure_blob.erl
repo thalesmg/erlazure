@@ -188,7 +188,11 @@ get_request_body(BlockRefs) ->
         FoldFun = fun(BlockRef=#blob_block{}, Acc) ->
                       [{block_type_to_node(BlockRef#blob_block.type),
                         [],
-                        [base64:encode_to_string(BlockRef#blob_block.id)]} | Acc]
+                        [base64:encode_to_string(BlockRef#blob_block.id)]} | Acc];
+                     ({BlockId, BlockType}, Acc) ->
+                      [{block_type_to_node(BlockType),
+                        [],
+                        [base64:encode_to_string(BlockId)]} | Acc]
                   end,
         Data = {'BlockList', [], lists:reverse(lists:foldl(FoldFun, [], BlockRefs))},
         lists:flatten(xmerl:export_simple([Data], xmerl_xml)).

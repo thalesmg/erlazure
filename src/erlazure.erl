@@ -667,7 +667,7 @@ handle_call({delete_blob, Container, Blob, Options}, _From, State) ->
 handle_call({put_block, Container, Blob, BlockId, Content, Options}, _From, State) ->
         ServiceContext = new_service_context(?blob_service, State),
         Params = [{comp, block},
-                  {blob_block_id, base64:encode_to_string(BlockId)}],
+                  {blob_block_id, uri_string:quote(base64:encode_to_string(BlockId))}],
         ReqOptions = [{method, put},
                       {path, lists:concat([Container, "/", Blob])},
                       {body, Content},
@@ -937,6 +937,11 @@ combine_canonical_param({Param, Value}, Param, Acc, ParamList) ->
 combine_canonical_param({Param, Value}, _PreviousParam, Acc, ParamList) ->
         [H | T] = ParamList,
         combine_canonical_param(H, Param, add_param_value(Param, Value, Acc), T).
+
+add_param_value(Param = "blockid", Value, Acc) ->
+        %% special case: `blockid' must be URL-encoded when sending the request, but not
+        %% when signing it.  At this point, we've already encoded it.
+        Acc ++ "\n" ++ string:to_lower(Param) ++ ":" ++ uri_string:unquote(Value);
 
 add_param_value(Param, Value, Acc) ->
         Acc ++ "\n" ++ string:to_lower(Param) ++ ":" ++ Value.
