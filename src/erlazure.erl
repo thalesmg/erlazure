@@ -678,12 +678,13 @@ handle_call({put_block, Container, Blob, BlockId, Content, Options}, _From, Stat
         return_response(Code, Body, State, ?http_created, created);
 
 % Put block list
-handle_call({put_block_list, Container, Blob, BlockRefs, Options}, _From, State) ->
+handle_call({put_block_list, Container, Blob, BlockRefs, Options0}, _From, State) ->
         ServiceContext = new_service_context(?blob_service, State),
+        {ExtraReqOpts, Options} = proplist_take(req_opts, Options0, []),
         ReqOptions = [{method, put},
                       {path, lists:concat([Container, "/", Blob])},
                       {body, erlazure_blob:get_request_body(BlockRefs)},
-                      {params, [{comp, "blocklist"}] ++ Options}],
+                      {params, [{comp, "blocklist"}] ++ Options} | ExtraReqOpts],
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
@@ -1083,6 +1084,14 @@ ensure_wrapped_key(#{key := Key} = InitOpts) ->
             InitOpts;
         false ->
             InitOpts#{key := wrap(Key)}
+    end.
+
+proplist_take(Key, Proplist, Default) ->
+    case lists:keytake(Key, 1, Proplist) of
+        false ->
+            {Default, Proplist};
+        {value, {Key, Value}, NewProplist} ->
+            {Value, NewProplist}
     end.
 
 %%====================================================================
