@@ -166,9 +166,11 @@ parse_block(#xmlElement{ content = Content }, Type) ->
         lists:foldl(FoldFun, #blob_block{ type = Type }, Nodes).
 
 str_to_blob_type("BlockBlob") -> block_blob;
+str_to_blob_type("AppendBlob") -> append_blob;
 str_to_blob_type("PageBlob") -> page_blob.
 
 blob_type_to_str(block_blob) -> "BlockBlob";
+blob_type_to_str(append_blob) -> "AppendBlob";
 blob_type_to_str(page_blob) -> "PageBlob".
 
 block_type_to_node(uncommitted) -> 'Uncommitted';
@@ -186,7 +188,11 @@ get_request_body(BlockRefs) ->
         FoldFun = fun(BlockRef=#blob_block{}, Acc) ->
                       [{block_type_to_node(BlockRef#blob_block.type),
                         [],
-                        [base64:encode_to_string(BlockRef#blob_block.id)]} | Acc]
+                        [base64:encode_to_string(BlockRef#blob_block.id)]} | Acc];
+                     ({BlockId, BlockType}, Acc) ->
+                      [{block_type_to_node(BlockType),
+                        [],
+                        [base64:encode_to_string(BlockId)]} | Acc]
                   end,
         Data = {'BlockList', [], lists:reverse(lists:foldl(FoldFun, [], BlockRefs))},
         lists:flatten(xmerl:export_simple([Data], xmerl_xml)).

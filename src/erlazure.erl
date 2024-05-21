@@ -62,6 +62,8 @@
 -export([lease_container/3, lease_container/4, lease_container/5]).
 -export([list_blobs/2, list_blobs/3, list_blobs/4]).
 -export([put_block_blob/4, put_block_blob/5, put_block_blob/6]).
+-export([put_append_blob/3, put_append_blob/4, put_append_blob/5]).
+-export([append_block/4, append_block/5, append_block/6]).
 -export([put_page_blob/4, put_page_blob/5, put_page_blob/6]).
 -export([get_blob/3, get_blob/4, get_blob/5]).
 -export([snapshot_blob/3, snapshot_blob/4, snapshot_blob/5]).
@@ -241,6 +243,20 @@ put_page_blob(Pid, Container, Name, ContentLength, Options) ->
         put_page_blob(Pid, Container, Name, ContentLength, Options, ?gen_server_call_default_timeout).
 put_page_blob(Pid, Container, Name, ContentLength, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         gen_server:call(Pid, {put_blob, Container, Name, page_blob, ContentLength, Options}, Timeout).
+
+put_append_blob(Pid, Container, Name) ->
+        put_append_blob(Pid, Container, Name, []).
+put_append_blob(Pid, Container, Name, Options) ->
+        put_append_blob(Pid, Container, Name, Options, ?gen_server_call_default_timeout).
+put_append_blob(Pid, Container, Name, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+        gen_server:call(Pid, {put_blob, Container, Name, append_blob, Options}, Timeout).
+
+append_block(Pid, Container, Name, Data) ->
+        append_block(Pid, Container, Name, Data, []).
+append_block(Pid, Container, Name, Data, Options) ->
+        append_block(Pid, Container, Name, Data, Options, ?gen_server_call_default_timeout).
+append_block(Pid, Container, Name, Data, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+        gen_server:call(Pid, {append_block, Container, Name, Data, Options}, Timeout).
 
 list_blobs(Pid, Container) ->
         list_blobs(Pid, Container, []).
@@ -481,9 +497,13 @@ handle_call({list_containers, Options}, _From, State) ->
         ReqOptions = [{params, [{comp, list}] ++ Options}],
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
-        {?http_ok, Body} = execute_request(ServiceContext, ReqContext),
-        {ok, Containers} = erlazure_blob:parse_container_list(Body),
-        {reply, Containers, State};
+        case execute_request(ServiceContext, ReqContext) of
+            {?http_ok, Body} ->
+                {ok, Containers} = erlazure_blob:parse_container_list(Body),
+                {reply, Containers, State};
+            {error, _} = Error ->
+                {reply, Error, State}
+        end;
 
 % Create a container
 handle_call({create_container, Name, Options}, _From, State) ->
@@ -565,6 +585,35 @@ handle_call({put_blob, Container, Name, Type = page_blob, ContentLength, Options
         {Code, Body} = execute_request(ServiceContext, ReqContext),
         return_response(Code, Body, State, ?http_created, created);
 
+% Put append blob
+handle_call({put_blob, Container, Name, Type = append_blob, Options}, _From, State) ->
+        ServiceContext = new_service_context(?blob_service, State),
+        Params = [{blob_type, Type}],
+        ReqOptions = [{method, put},
+                      {path, lists:concat([Container, "/", Name])},
+                      {params, Params ++ Options}],
+        ReqContext1 = new_req_context(?blob_service, ReqOptions, State),
+        ReqContext = case proplists:get_value(content_type, Options) of
+                       undefined    -> ReqContext1#req_context{ content_type = "application/octet-stream" };
+                       ContentType  -> ReqContext1#req_context{ content_type = ContentType }
+                     end,
+
+        {Code, Body} = execute_request(ServiceContext, ReqContext),
+        return_response(Code, Body, State, ?http_created, created);
+
+% Append block
+handle_call({append_block, Container, Name, Data, Options}, _From, State) ->
+        ServiceContext = new_service_context(?blob_service, State),
+        Params = [{comp, "appendblock"}],
+        ReqOptions = [{method, put},
+                      {path, lists:concat([Container, "/", Name])},
+                      {body, Data},
+                      {params, Params ++ Options}],
+        ReqContext = new_req_context(?blob_service, ReqOptions, State),
+
+        {Code, Body} = execute_request(ServiceContext, ReqContext),
+        return_response(Code, Body, State, ?http_created, appended);
+
 % Get blob
 handle_call({get_blob, Container, Blob, Options}, _From, State) ->
         ServiceContext = new_service_context(?blob_service, State),
@@ -618,7 +667,7 @@ handle_call({delete_blob, Container, Blob, Options}, _From, State) ->
 handle_call({put_block, Container, Blob, BlockId, Content, Options}, _From, State) ->
         ServiceContext = new_service_context(?blob_service, State),
         Params = [{comp, block},
-                  {blob_block_id, base64:encode_to_string(BlockId)}],
+                  {blob_block_id, uri_string:quote(base64:encode_to_string(BlockId))}],
         ReqOptions = [{method, put},
                       {path, lists:concat([Container, "/", Blob])},
                       {body, Content},
@@ -629,12 +678,13 @@ handle_call({put_block, Container, Blob, BlockId, Content, Options}, _From, Stat
         return_response(Code, Body, State, ?http_created, created);
 
 % Put block list
-handle_call({put_block_list, Container, Blob, BlockRefs, Options}, _From, State) ->
+handle_call({put_block_list, Container, Blob, BlockRefs, Options0}, _From, State) ->
         ServiceContext = new_service_context(?blob_service, State),
+        {ExtraReqOpts, Options} = proplist_take(req_opts, Options0, []),
         ReqOptions = [{method, put},
                       {path, lists:concat([Container, "/", Blob])},
                       {body, erlazure_blob:get_request_body(BlockRefs)},
-                      {params, [{comp, "blocklist"}] ++ Options}],
+                      {params, [{comp, "blocklist"}] ++ Options} | ExtraReqOpts],
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
@@ -764,7 +814,10 @@ execute_request(ServiceContext = #service_context{}, ReqContext = #req_context{}
             {Code, Body};
 
           {ok, {{_, _, _}, _, Body}} ->
-            get_error_code(Body)
+            get_error_code(Body);
+
+          {error, Error} ->
+            {error, Error}
         end.
 
 get_error_code(Body) ->
@@ -885,6 +938,11 @@ combine_canonical_param({Param, Value}, Param, Acc, ParamList) ->
 combine_canonical_param({Param, Value}, _PreviousParam, Acc, ParamList) ->
         [H | T] = ParamList,
         combine_canonical_param(H, Param, add_param_value(Param, Value, Acc), T).
+
+add_param_value(Param = "blockid", Value, Acc) ->
+        %% special case: `blockid' must be URL-encoded when sending the request, but not
+        %% when signing it.  At this point, we've already encoded it.
+        Acc ++ "\n" ++ string:to_lower(Param) ++ ":" ++ uri_string:unquote(Value);
 
 add_param_value(Param, Value, Acc) ->
         Acc ++ "\n" ++ string:to_lower(Param) ++ ":" ++ Value.
@@ -1026,6 +1084,14 @@ ensure_wrapped_key(#{key := Key} = InitOpts) ->
             InitOpts;
         false ->
             InitOpts#{key := wrap(Key)}
+    end.
+
+proplist_take(Key, Proplist, Default) ->
+    case lists:keytake(Key, 1, Proplist) of
+        false ->
+            {Default, Proplist};
+        {value, {Key, Value}, NewProplist} ->
+            {Value, NewProplist}
     end.
 
 %%====================================================================
