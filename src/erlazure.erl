@@ -552,9 +552,15 @@ handle_call({list_blobs, Name, Options}, _From, State) ->
                       {params, Params ++ Options}],
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
-        {?http_ok, Body} = execute_request(ServiceContext, ReqContext),
-        {ok, Blobs} = erlazure_blob:parse_blob_list(Body),
-        {reply, Blobs, State};
+        case execute_request(ServiceContext, ReqContext) of
+            {?http_ok, Body} ->
+                {ok, Blobs} = erlazure_blob:parse_blob_list(Body),
+                {reply, Blobs, State};
+            {error, Reason} ->
+                {reply, {error, Reason}, State};
+            Error ->
+                {reply, {error, Error}, State}
+        end;
 
 % Put block blob
 handle_call({put_blob, Container, Name, Type = block_blob, Data, Options}, _From, State) ->

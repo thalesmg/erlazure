@@ -101,6 +101,7 @@ t_blob_storage_smoke_test(Config) ->
     {ok, Pid} = erlazure:start(#{account => ?ACCOUNT, key => ?KEY, endpoint => Endpoint}),
     %% Create a container
     Container = container_name(?FUNCTION_NAME),
+    ?assertMatch({error, #{code := "ContainerNotFound"}}, erlazure:list_blobs(Pid, Container)),
     ?assertMatch({[], _}, erlazure:list_containers(Pid)),
     ?assertMatch({ok, created}, erlazure:create_container(Pid, Container)),
     %% Upload some blobs
