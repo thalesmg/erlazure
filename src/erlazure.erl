@@ -143,7 +143,7 @@ set_queue_acl(State, Queue, SignedId=#signed_id{}, Options) when is_list(Options
         ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_no_content, created).
+        return_response(Code, Body, ?http_no_content, created).
 
 -spec get_queue_acl(state(), string()) -> {ok, no_acl} | {ok, signed_id()}.
 get_queue_acl(State, Queue) ->
@@ -187,7 +187,7 @@ delete_queue(State, Queue, Options) when is_list(Options) ->
         ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_no_content, deleted).
+        return_response(Code, Body, ?http_no_content, deleted).
 
 put_message(State, Queue, Message) ->
         put_message(State, Queue, Message, []).
@@ -200,7 +200,7 @@ put_message(State, Queue, Message, Options) when is_list(Options) ->
         ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_created, created).
+        return_response(Code, Body, ?http_created, created).
 
 get_messages(State, Queue) ->
         get_messages(State, Queue, []).
@@ -234,7 +234,7 @@ delete_message(State, Queue, MessageId, PopReceipt, Options) when is_list(Option
         ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_no_content, deleted).
+        return_response(Code, Body, ?http_no_content, deleted).
 
 clear_messages(State, Queue) ->
         clear_messages(State, Queue, []).
@@ -246,7 +246,7 @@ clear_messages(State, Queue, Options) when is_list(Options) ->
         ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_no_content, deleted).
+        return_response(Code, Body, ?http_no_content, deleted).
 
 update_message(State, Queue, UpdatedMessage=#queue_message{}, VisibilityTimeout) ->
         update_message(State, Queue, UpdatedMessage, VisibilityTimeout, []).
@@ -261,7 +261,7 @@ update_message(State, Queue, UpdatedMessage=#queue_message{}, VisibilityTimeout,
         ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_no_content, updated).
+        return_response(Code, Body, ?http_no_content, updated).
 
 %%====================================================================
 %% Blob
@@ -306,7 +306,7 @@ delete_container(State, Name, Options) when is_list(Options) ->
         RequestContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, RequestContext),
-        return_response(Code, Body, State, ?http_accepted, deleted).
+        return_response(Code, Body, ?http_accepted, deleted).
 
 put_block_blob(State, Container, Name, Data) ->
         put_block_blob(State, Container, Name, Data, []).
@@ -323,7 +323,7 @@ put_block_blob(State, Container, Name, Data, Options) when is_list(Options) ->
                       end,
 
         {Code, Body} = execute_request(ServiceContext, ReqContext1),
-        return_response(Code, Body, State, ?http_created, created).
+        return_response(Code, Body, ?http_created, created).
 
 put_page_blob(State, Container, Name, ContentLength) ->
         put_page_blob(State, Container, Name, ContentLength, []).
@@ -337,7 +337,7 @@ put_page_blob(State, Container, Name, ContentLength, Options) when is_list(Optio
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_created, created).
+        return_response(Code, Body, ?http_created, created).
 
 put_append_blob(State, Container, Name) ->
         put_append_blob(State, Container, Name, []).
@@ -354,7 +354,7 @@ put_append_blob(State, Container, Name, Options) when is_list(Options) ->
                      end,
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_created, created).
+        return_response(Code, Body, ?http_created, created).
 
 append_block(State, Container, Name, Data) ->
         append_block(State, Container, Name, Data, []).
@@ -368,7 +368,7 @@ append_block(State, Container, Name, Data, Options) when is_list(Options) ->
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_created, appended).
+        return_response(Code, Body, ?http_created, appended).
 
 list_blobs(State, Container) ->
         list_blobs(State, Container, []).
@@ -411,7 +411,7 @@ snapshot_blob(State, Container, Blob, Options) when is_list(Options) ->
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_created, created).
+        return_response(Code, Body, ?http_created, created).
 
 copy_blob(State, Container, Blob, Source) ->
         copy_blob(State, Container, Blob, Source, []).
@@ -423,7 +423,7 @@ copy_blob(State, Container, Blob, Source, Options) when is_list(Options) ->
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_accepted, created).
+        return_response(Code, Body, ?http_accepted, created).
 
 delete_blob(State, Container, Blob) ->
         delete_blob(State, Container, Blob, []).
@@ -435,7 +435,7 @@ delete_blob(State, Container, Blob, Options) when is_list(Options) ->
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_accepted, deleted).
+        return_response(Code, Body, ?http_accepted, deleted).
 
 put_block(State, Container, Blob, BlockId, BlockContent) ->
         put_block(State, Container, Blob, BlockId, BlockContent, []).
@@ -450,7 +450,7 @@ put_block(State, Container, Blob, BlockId, BlockContent, Options) when is_list(O
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_created, created).
+        return_response(Code, Body, ?http_created, created).
 
 put_block_list(State, Container, Blob, BlockRefs) ->
         put_block_list(State, Container, Blob, BlockRefs, []).
@@ -463,7 +463,7 @@ put_block_list(State, Container, Blob, BlockRefs, Options) when is_list(Options)
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_created, created).
+        return_response(Code, Body, ?http_created, created).
 
 get_block_list(State, Container, Blob) ->
         get_block_list(State, Container, Blob, []).
@@ -495,7 +495,7 @@ acquire_blob_lease(State, Container, Blob, ProposedId, Duration, Options) when i
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_created, acquired).
+        return_response(Code, Body, ?http_created, acquired).
 
 lease_container(State, Name, Mode) ->
         lease_container(State, Name, Mode, []).
@@ -510,7 +510,7 @@ lease_container(State, Name, Mode, Options) when is_atom(Mode), is_list(Options)
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_accepted, deleted).
+        return_response(Code, Body, ?http_accepted, deleted).
 
 %%====================================================================
 %% Table
@@ -538,7 +538,7 @@ new_table(State, TableName) when is_binary(TableName) ->
         ReqContext = new_req_context(?table_service, ReqOptions, State),
         ReqContext1 = ReqContext#req_context{ content_type = ?json_content_type },
         {Code, Body} = execute_request(ServiceContext, ReqContext1),
-        return_response(Code, Body, State, ?http_created, created).
+        return_response(Code, Body, ?http_created, created).
 
 delete_table(State, TableName) when is_binary(TableName) ->
         delete_table(State, binary_to_list(TableName));
@@ -833,7 +833,7 @@ get_req_common_param_specs() ->
          #param_spec{ id = ?req_param_include, type = uri, name = "include" },
          #param_spec{ id = ?req_param_marker, type = uri, name = "marker" }].
 
-return_response(Code, Body, State, ExpectedResponseCode, SuccessAtom) ->
+return_response(Code, Body, ExpectedResponseCode, SuccessAtom) ->
   case Code of
     ExpectedResponseCode ->
       {ok, SuccessAtom};
