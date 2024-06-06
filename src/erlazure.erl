@@ -37,10 +37,8 @@
 -define(json_content_type, "application/json").
 -define(gen_server_call_default_timeout, 30000).
 
--behaviour(gen_server).
-
 %% API
--export([start/1, start/2]).
+-export([new/1, new/2]).
 
 %% Queue API
 -export([list_queues/1, list_queues/2, list_queues/3]).
@@ -80,9 +78,6 @@
 %% Host API
 -export([get_host/3, get_host/4]).
 
-%% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
-
 -type init_opts() :: #{
     account := string(),
     key := string() | function(),
@@ -93,267 +88,17 @@
 }.
 
 -record(state, { account = "", key = "", options = #{}, param_specs = [] }).
+-type state() :: #state{}.
+
+-export_types([state/0]).
 
 %%====================================================================
 %% API
 %%====================================================================
 
--spec start(init_opts()) -> gen_server:start_ret().
-start(InitOpts0) ->
+-spec new(init_opts()) -> {ok, state()}.
+new(InitOpts0) ->
         InitOpts = ensure_wrapped_key(InitOpts0),
-        gen_server:start_link(?MODULE, InitOpts, []).
-
--spec start(string(), string()) -> {ok, pid()}.
-start(Account, Key) ->
-        start(#{account => Account, key => Key}).
-
-%%====================================================================
-%% Queue
-%%====================================================================
-
--spec list_queues(pid()) -> enum_parse_result(queue()).
-list_queues(Pid) ->
-        list_queues(Pid, []).
-
--spec list_queues(pid(), common_opts()) -> enum_parse_result(queue()).
-list_queues(Pid, Options) ->
-        list_queues(Pid, Options, ?gen_server_call_default_timeout).
-
--spec list_queues(pid(), common_opts(), pos_integer()) -> enum_parse_result(queue()).
-list_queues(Pid, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {list_queues, Options}, Timeout).
-
--type queue_acl_opts() :: req_param_timeout() | req_param_clientrequestid().
--spec set_queue_acl(pid(), string(), signed_id()) -> {ok, created}.
-set_queue_acl(Pid, Queue, SignedId=#signed_id{}) ->
-        set_queue_acl(Pid, Queue, SignedId, []).
-
--spec set_queue_acl(pid(), string(), signed_id(), list(queue_acl_opts())) -> {ok, created}.
-set_queue_acl(Pid, Queue, SignedId=#signed_id{}, Options) ->
-        set_queue_acl(Pid, Queue, SignedId, Options, ?gen_server_call_default_timeout).
-
--spec set_queue_acl(pid(), string(), signed_id(), list(queue_acl_opts()), pos_integer()) -> {ok, created}.
-set_queue_acl(Pid, Queue, SignedId=#signed_id{}, Options, Timeout) when is_list(Options); is_integer(Timeout)->
-        gen_server:call(Pid, {set_queue_acl, Queue, SignedId, Options}, Timeout).
-
--spec get_queue_acl(pid(), string()) -> {ok, no_acl} | {ok, signed_id()}.
-get_queue_acl(Pid, Queue) ->
-        get_queue_acl(Pid, Queue, []).
-
--spec get_queue_acl(pid(), string(), list(queue_acl_opts())) -> {ok, no_acl} | {ok, signed_id()}.
-get_queue_acl(Pid, Queue, Options) ->
-        get_queue_acl(Pid, Queue, Options, ?gen_server_call_default_timeout).
-
--spec get_queue_acl(pid(), string(), list(queue_acl_opts()), pos_integer()) -> {ok, no_acl} | {ok, signed_id()}.
-get_queue_acl(Pid, Queue, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {get_queue_acl, Queue, Options}, Timeout).
-
--spec create_queue(pid(), string()) -> created_response() | already_created_response().
-create_queue(Pid, Queue) ->
-        create_queue(Pid, Queue, []).
-create_queue(Pid, Queue, Options) ->
-        create_queue(Pid, Queue, Options, ?gen_server_call_default_timeout).
-create_queue(Pid, Queue, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {create_queue, Queue, Options}, Timeout).
-
-delete_queue(Pid, Queue) ->
-        delete_queue(Pid, Queue, []).
-delete_queue(Pid, Queue, Options) ->
-        delete_queue(Pid, Queue, Options, ?gen_server_call_default_timeout).
-delete_queue(Pid, Queue, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {delete_queue, Queue, Options}, Timeout).
-
-put_message(Pid, Queue, Message) ->
-        put_message(Pid, Queue, Message, []).
-put_message(Pid, Queue, Message, Options) ->
-        put_message(Pid, Queue, Message, Options, ?gen_server_call_default_timeout).
-put_message(Pid, Queue, Message, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {put_message, Queue, Message, Options}, Timeout).
-
-get_messages(Pid, Queue) ->
-        get_messages(Pid, Queue, []).
-get_messages(Pid, Queue, Options) ->
-        get_messages(Pid, Queue, Options, ?gen_server_call_default_timeout).
-get_messages(Pid, Queue, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {get_messages, Queue, Options}, Timeout).
-
-peek_messages(Pid, Queue) ->
-        peek_messages(Pid, Queue, []).
-peek_messages(Pid, Queue, Options) ->
-        peek_messages(Pid, Queue, Options, ?gen_server_call_default_timeout).
-peek_messages(Pid, Queue, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {peek_messages, Queue, Options}, Timeout).
-
-delete_message(Pid, Queue, MessageId, PopReceipt) ->
-        delete_message(Pid, Queue, MessageId, PopReceipt, []).
-delete_message(Pid, Queue, MessageId, PopReceipt, Options)  ->
-        delete_message(Pid, Queue, MessageId, PopReceipt, Options, ?gen_server_call_default_timeout).
-delete_message(Pid, Queue, MessageId, PopReceipt, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {delete_message, Queue, MessageId, PopReceipt, Options}, Timeout).
-
-clear_messages(Pid, Queue) ->
-        clear_messages(Pid, Queue, []).
-clear_messages(Pid, Queue, Options) ->
-        clear_messages(Pid, Queue, Options, ?gen_server_call_default_timeout).
-clear_messages(Pid, Queue, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {clear_messages, Queue, Options}, Timeout).
-
-update_message(Pid, Queue, UpdatedMessage=#queue_message{}, VisibilityTimeout) ->
-        update_message(Pid, Queue, UpdatedMessage, VisibilityTimeout, []).
-update_message(Pid, Queue, UpdatedMessage=#queue_message{}, VisibilityTimeout, Options) ->
-        update_message(Pid, Queue, UpdatedMessage, VisibilityTimeout, Options, ?gen_server_call_default_timeout).
-update_message(Pid, Queue, UpdatedMessage=#queue_message{}, VisibilityTimeout, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {update_message, Queue, UpdatedMessage, VisibilityTimeout, Options}, Timeout).
-
-%%====================================================================
-%% Blob
-%%====================================================================
-
-list_containers(Pid) ->
-        list_containers(Pid, []).
-list_containers(Pid, Options) ->
-        list_containers(Pid, Options, ?gen_server_call_default_timeout).
-list_containers(Pid, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {list_containers, Options}, Timeout).
-
-create_container(Pid, Name) ->
-        create_container(Pid, Name, []).
-create_container(Pid, Name, Options) ->
-        create_container(Pid, Name, Options, ?gen_server_call_default_timeout).
-create_container(Pid, Name, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {create_container, Name, Options}, Timeout).
-
-delete_container(Pid, Name) ->
-        delete_container(Pid, Name, []).
-delete_container(Pid, Name, Options) ->
-        delete_container(Pid, Name, Options, ?gen_server_call_default_timeout).
-delete_container(Pid, Name, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {delete_container, Name, Options}, Timeout).
-
-put_block_blob(Pid, Container, Name, Data) ->
-        put_block_blob(Pid, Container, Name, Data, []).
-put_block_blob(Pid, Container, Name, Data, Options) ->
-        put_block_blob(Pid, Container, Name, Data, Options, ?gen_server_call_default_timeout).
-put_block_blob(Pid, Container, Name, Data, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {put_blob, Container, Name, block_blob, Data, Options}, Timeout).
-
-put_page_blob(Pid, Container, Name, ContentLength) ->
-        put_page_blob(Pid, Container, Name, ContentLength, []).
-put_page_blob(Pid, Container, Name, ContentLength, Options) ->
-        put_page_blob(Pid, Container, Name, ContentLength, Options, ?gen_server_call_default_timeout).
-put_page_blob(Pid, Container, Name, ContentLength, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {put_blob, Container, Name, page_blob, ContentLength, Options}, Timeout).
-
-put_append_blob(Pid, Container, Name) ->
-        put_append_blob(Pid, Container, Name, []).
-put_append_blob(Pid, Container, Name, Options) ->
-        put_append_blob(Pid, Container, Name, Options, ?gen_server_call_default_timeout).
-put_append_blob(Pid, Container, Name, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {put_blob, Container, Name, append_blob, Options}, Timeout).
-
-append_block(Pid, Container, Name, Data) ->
-        append_block(Pid, Container, Name, Data, []).
-append_block(Pid, Container, Name, Data, Options) ->
-        append_block(Pid, Container, Name, Data, Options, ?gen_server_call_default_timeout).
-append_block(Pid, Container, Name, Data, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {append_block, Container, Name, Data, Options}, Timeout).
-
-list_blobs(Pid, Container) ->
-        list_blobs(Pid, Container, []).
-list_blobs(Pid, Container, Options) ->
-        list_blobs(Pid, Container, Options, ?gen_server_call_default_timeout).
-list_blobs(Pid, Container, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {list_blobs, Container, Options}, Timeout).
-
-get_blob(Pid, Container, Blob) ->
-        get_blob(Pid, Container, Blob, []).
-get_blob(Pid, Container, Blob, Options) ->
-        get_blob(Pid, Container, Blob, Options, ?gen_server_call_default_timeout).
-get_blob(Pid, Container, Blob, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {get_blob, Container, Blob, Options}, Timeout).
-
-snapshot_blob(Pid, Container, Blob) ->
-        snapshot_blob(Pid, Container, Blob, []).
-snapshot_blob(Pid, Container, Blob, Options) ->
-        snapshot_blob(Pid, Container, Blob, Options, ?gen_server_call_default_timeout).
-snapshot_blob(Pid, Container, Blob, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {snapshot_blob, Container, Blob, Options}, Timeout).
-
-copy_blob(Pid, Container, Blob, Source) ->
-        copy_blob(Pid, Container, Blob, Source, []).
-copy_blob(Pid, Container, Blob, Source, Options) ->
-        copy_blob(Pid, Container, Blob, Source, Options, ?gen_server_call_default_timeout).
-copy_blob(Pid, Container, Blob, Source, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {copy_blob, Container, Blob, Source, Options}, Timeout).
-
-delete_blob(Pid, Container, Blob) ->
-        delete_blob(Pid, Container, Blob, []).
-delete_blob(Pid, Container, Blob, Options) ->
-        delete_blob(Pid, Container, Blob, Options, ?gen_server_call_default_timeout).
-delete_blob(Pid, Container, Blob, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {delete_blob, Container, Blob, Options}, Timeout).
-
-put_block(Pid, Container, Blob, BlockId, BlockContent) ->
-        put_block(Pid, Container, Blob, BlockId, BlockContent, []).
-put_block(Pid, Container, Blob, BlockId, BlockContent, Options) ->
-        put_block(Pid, Container, Blob, BlockId, BlockContent, Options, ?gen_server_call_default_timeout).
-put_block(Pid, Container, Blob, BlockId, BlockContent, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {put_block, Container, Blob, BlockId, BlockContent, Options}, Timeout).
-
-put_block_list(Pid, Container, Blob, BlockRefs) ->
-        put_block_list(Pid, Container, Blob, BlockRefs, []).
-put_block_list(Pid, Container, Blob, BlockRefs, Options) ->
-        put_block_list(Pid, Container, Blob, BlockRefs, Options, ?gen_server_call_default_timeout).
-put_block_list(Pid, Container, Blob, BlockRefs, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {put_block_list, Container, Blob, BlockRefs, Options}, Timeout).
-
-get_block_list(Pid, Container, Blob) ->
-        get_block_list(Pid, Container, Blob, []).
-get_block_list(Pid, Container, Blob, Options) ->
-        get_block_list(Pid, Container, Blob, Options, ?gen_server_call_default_timeout).
-get_block_list(Pid, Container, Blob, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {get_block_list, Container, Blob, Options}, Timeout).
-
-acquire_blob_lease(Pid, Container, Blob, Duration) ->
-        acquire_blob_lease(Pid, Container, Blob, Duration, []).
-acquire_blob_lease(Pid, Container, Blob, Duration, Options) ->
-        acquire_blob_lease(Pid, Container, Blob, "", Duration, Options, ?gen_server_call_default_timeout).
-acquire_blob_lease(Pid, Container, Blob, ProposedId, Duration, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {acquire_blob_lease, Container, Blob, ProposedId, Duration, Options}, Timeout).
-
-lease_container(Pid, Name, Mode) ->
-        lease_container(Pid, Name, Mode, []).
-lease_container(Pid, Name, Mode, Options) ->
-        lease_container(Pid, Name, Mode, Options, ?gen_server_call_default_timeout).
-lease_container(Pid, Name, Mode, Options, Timeout) when is_atom(Mode); is_list(Options); is_integer(Timeout) ->
-        gen_server:call(Pid, {lease_container, Name, Mode, Options}, Timeout).
-
-%%====================================================================
-%% Table
-%%====================================================================
-
-list_tables(Pid) ->
-        list_tables(Pid, [], ?gen_server_call_default_timeout).
-list_tables(Pid, Options, Timeout) when is_list(Options); is_integer(Timeout)->
-        gen_server:call(Pid, {list_tables, Options}, Timeout).
-
-new_table(Pid, TableName) when is_list(TableName) ->
-        new_table(Pid, list_to_binary(TableName));
-
-new_table(Pid, TableName) when is_binary(TableName) ->
-        gen_server:call(Pid, {new_table, TableName}).
-
-delete_table(Pid, TableName) when is_binary(TableName) ->
-        delete_table(Pid, binary_to_list(TableName));
-
-delete_table(Pid, TableName) when is_list(TableName) ->
-        gen_server:call(Pid, {delete_table, TableName}).
-
-%%====================================================================
-%% gen_server callbacks
-%%====================================================================
-
-init(InitOpts) ->
         #{ account := Account
          , key := Key
          } = InitOpts,
@@ -363,18 +108,42 @@ init(InitOpts) ->
                       options = StateOpts,
                       param_specs = get_req_param_specs() }}.
 
-% List queues
-handle_call({list_queues, Options}, _From, State) ->
+-spec new(string(), string()) -> {ok, state()}.
+new(Account, Key) ->
+        new(#{account => Account, key => Key}).
+
+%%====================================================================
+%% Queue
+%%====================================================================
+
+-spec list_queues(state()) -> enum_parse_result(queue()).
+list_queues(State) ->
+        list_queues(State, []).
+
+-spec list_queues(state(), common_opts()) -> enum_parse_result(queue()).
+list_queues(State, Options) ->
+        list_queues(State, Options, ?gen_server_call_default_timeout).
+
+-spec list_queues(state(), common_opts(), pos_integer()) -> enum_parse_result(queue()).
+list_queues(State, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{params, [{comp, list}] ++ Options}],
         ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {?http_ok, Body} = execute_request(ServiceContext, ReqContext),
-        ParseResult = erlazure_queue:parse_queue_list(Body),
-        {reply, ParseResult, State};
+        erlazure_queue:parse_queue_list(Body).
 
-% Set queue acl
-handle_call({set_queue_acl, Queue, SignedId=#signed_id{}, Options}, _From, State) ->
+-type queue_acl_opts() :: req_param_timeout() | req_param_clientrequestid().
+-spec set_queue_acl(state(), string(), signed_id()) -> {ok, created}.
+set_queue_acl(State, Queue, SignedId=#signed_id{}) ->
+        set_queue_acl(State, Queue, SignedId, []).
+
+-spec set_queue_acl(state(), string(), signed_id(), list(queue_acl_opts())) -> {ok, created}.
+set_queue_acl(State, Queue, SignedId=#signed_id{}, Options) ->
+        set_queue_acl(State, Queue, SignedId, Options, ?gen_server_call_default_timeout).
+
+-spec set_queue_acl(state(), string(), signed_id(), list(queue_acl_opts()), pos_integer()) -> {ok, created}.
+set_queue_acl(State, Queue, SignedId=#signed_id{}, Options, Timeout) when is_list(Options); is_integer(Timeout)->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{method, put},
                       {path, string:to_lower(Queue)},
@@ -383,21 +152,32 @@ handle_call({set_queue_acl, Queue, SignedId=#signed_id{}, Options}, _From, State
         ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_no_content, created);
+        return_response(Code, Body, State, ?http_no_content, created).
 
-% Get queue acl
-handle_call({get_queue_acl, Queue, Options}, _From, State) ->
+-spec get_queue_acl(state(), string()) -> {ok, no_acl} | {ok, signed_id()}.
+get_queue_acl(State, Queue) ->
+        get_queue_acl(State, Queue, []).
+
+-spec get_queue_acl(state(), string(), list(queue_acl_opts())) -> {ok, no_acl} | {ok, signed_id()}.
+get_queue_acl(State, Queue, Options) ->
+        get_queue_acl(State, Queue, Options, ?gen_server_call_default_timeout).
+
+-spec get_queue_acl(state(), string(), list(queue_acl_opts()), pos_integer()) -> {ok, no_acl} | {ok, signed_id()}.
+get_queue_acl(State, Queue, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{path, string:to_lower(Queue)},
                       {params, [{comp, acl}] ++ Options}],
         ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {?http_ok, Body} = execute_request(ServiceContext, ReqContext),
-        ParseResult = erlazure_queue:parse_queue_acl_response(Body),
-        {reply, ParseResult, State};
+        erlazure_queue:parse_queue_acl_response(Body).
 
-% Create queue
-handle_call({create_queue, Queue, Options}, _From, State) ->
+-spec create_queue(state(), string()) -> created_response() | already_created_response().
+create_queue(State, Queue) ->
+        create_queue(State, Queue, []).
+create_queue(State, Queue, Options) ->
+        create_queue(State, Queue, Options, ?gen_server_call_default_timeout).
+create_queue(State, Queue, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{method, put},
                       {path, string:to_lower(Queue)},
@@ -407,13 +187,16 @@ handle_call({create_queue, Queue, Options}, _From, State) ->
         {Code, _Body} = execute_request(ServiceContext, ReqContext),
         case Code of
           ?http_created ->
-            {reply, {ok, created}, State};
+            {ok, created};
           ?http_no_content ->
-            {reply, {error, already_created}, State}
-        end;
+            {error, already_created}
+        end.
 
-% Delete queue
-handle_call({delete_queue, Queue, Options}, _From, State) ->
+delete_queue(State, Queue) ->
+        delete_queue(State, Queue, []).
+delete_queue(State, Queue, Options) ->
+        delete_queue(State, Queue, Options, ?gen_server_call_default_timeout).
+delete_queue(State, Queue, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{method, delete},
                       {path, string:to_lower(Queue)},
@@ -421,10 +204,13 @@ handle_call({delete_queue, Queue, Options}, _From, State) ->
         ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_no_content, deleted);
+        return_response(Code, Body, State, ?http_no_content, deleted).
 
-% Add message to a queue
-handle_call({put_message, Queue, Message, Options}, _From, State) ->
+put_message(State, Queue, Message) ->
+        put_message(State, Queue, Message, []).
+put_message(State, Queue, Message, Options) ->
+        put_message(State, Queue, Message, Options, ?gen_server_call_default_timeout).
+put_message(State, Queue, Message, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{method, post},
                       {path, lists:concat([string:to_lower(Queue), "/messages"])},
@@ -433,30 +219,39 @@ handle_call({put_message, Queue, Message, Options}, _From, State) ->
         ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_created, created);
+        return_response(Code, Body, State, ?http_created, created).
 
-% Get messages from the queue
-handle_call({get_messages, Queue, Options}, _From, State) ->
+get_messages(State, Queue) ->
+        get_messages(State, Queue, []).
+get_messages(State, Queue, Options) ->
+        get_messages(State, Queue, Options, ?gen_server_call_default_timeout).
+get_messages(State, Queue, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{path, string:to_lower(Queue) ++ "/messages"},
                       {params, Options}],
         ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {?http_ok, Body} = execute_request(ServiceContext, ReqContext),
-        {reply, erlazure_queue:parse_queue_messages_list(Body), State};
+        erlazure_queue:parse_queue_messages_list(Body).
 
-% Peek messages from the queue
-handle_call({peek_messages, Queue, Options}, _From, State) ->
+peek_messages(State, Queue) ->
+        peek_messages(State, Queue, []).
+peek_messages(State, Queue, Options) ->
+        peek_messages(State, Queue, Options, ?gen_server_call_default_timeout).
+peek_messages(State, Queue, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{path, string:to_lower(Queue) ++ "/messages"},
                       {params, [{peek_only, true}] ++ Options}],
         ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {?http_ok, Body} = execute_request(ServiceContext, ReqContext),
-        {reply, erlazure_queue:parse_queue_messages_list(Body), State};
+        erlazure_queue:parse_queue_messages_list(Body).
 
-% Delete message from the queue
-handle_call({delete_message, Queue, MessageId, PopReceipt, Options}, _From, State) ->
+delete_message(State, Queue, MessageId, PopReceipt) ->
+        delete_message(State, Queue, MessageId, PopReceipt, []).
+delete_message(State, Queue, MessageId, PopReceipt, Options)  ->
+        delete_message(State, Queue, MessageId, PopReceipt, Options, ?gen_server_call_default_timeout).
+delete_message(State, Queue, MessageId, PopReceipt, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{method, delete},
                       {path, lists:concat([string:to_lower(Queue), "/messages/", MessageId])},
@@ -464,10 +259,13 @@ handle_call({delete_message, Queue, MessageId, PopReceipt, Options}, _From, Stat
         ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_no_content, deleted);
+        return_response(Code, Body, State, ?http_no_content, deleted).
 
-% Delete all messages from the queue
-handle_call({clear_messages, Queue, Options}, _From, State) ->
+clear_messages(State, Queue) ->
+        clear_messages(State, Queue, []).
+clear_messages(State, Queue, Options) ->
+        clear_messages(State, Queue, Options, ?gen_server_call_default_timeout).
+clear_messages(State, Queue, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{method, delete},
                       {path, string:to_lower(Queue) ++ "/messages"},
@@ -475,10 +273,13 @@ handle_call({clear_messages, Queue, Options}, _From, State) ->
         ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_no_content, deleted);
+        return_response(Code, Body, State, ?http_no_content, deleted).
 
-% Update a message in the queue
-handle_call({update_message, Queue, UpdatedMessage=#queue_message{}, VisibilityTimeout, Options}, _From, State) ->
+update_message(State, Queue, UpdatedMessage=#queue_message{}, VisibilityTimeout) ->
+        update_message(State, Queue, UpdatedMessage, VisibilityTimeout, []).
+update_message(State, Queue, UpdatedMessage=#queue_message{}, VisibilityTimeout, Options) ->
+        update_message(State, Queue, UpdatedMessage, VisibilityTimeout, Options, ?gen_server_call_default_timeout).
+update_message(State, Queue, UpdatedMessage=#queue_message{}, VisibilityTimeout, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?queue_service, State),
         Params = [{pop_receipt, UpdatedMessage#queue_message.pop_receipt},
                   {message_visibility_timeout, integer_to_list(VisibilityTimeout)}],
@@ -489,10 +290,17 @@ handle_call({update_message, Queue, UpdatedMessage=#queue_message{}, VisibilityT
         ReqContext = new_req_context(?queue_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_no_content, updated);
+        return_response(Code, Body, State, ?http_no_content, updated).
 
-% List containers
-handle_call({list_containers, Options}, _From, State) ->
+%%====================================================================
+%% Blob
+%%====================================================================
+
+list_containers(State) ->
+        list_containers(State, []).
+list_containers(State, Options) ->
+        list_containers(State, Options, ?gen_server_call_default_timeout).
+list_containers(State, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?blob_service, State),
         ReqOptions = [{params, [{comp, list}] ++ Options}],
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
@@ -500,13 +308,16 @@ handle_call({list_containers, Options}, _From, State) ->
         case execute_request(ServiceContext, ReqContext) of
             {?http_ok, Body} ->
                 {ok, Containers} = erlazure_blob:parse_container_list(Body),
-                {reply, Containers, State};
+                Containers;
             {error, _} = Error ->
-                {reply, Error, State}
-        end;
+                Error
+        end.
 
-% Create a container
-handle_call({create_container, Name, Options}, _From, State) ->
+create_container(State, Name) ->
+        create_container(State, Name, []).
+create_container(State, Name, Options) ->
+        create_container(State, Name, Options, ?gen_server_call_default_timeout).
+create_container(State, Name, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?blob_service, State),
         ReqOptions = [{method, put},
                       {path, Name},
@@ -514,12 +325,15 @@ handle_call({create_container, Name, Options}, _From, State) ->
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
         {Code, Body} = execute_request(ServiceContext, ReqContext),
         case Code of
-          ?http_created -> {reply, {ok, created}, State};
-          _ -> {reply, {error, Body}, State}
-        end;
+          ?http_created -> {ok, created};
+          _ -> {error, Body}
+        end.
 
-% Delete container
-handle_call({delete_container, Name, Options}, _From, State) ->
+delete_container(State, Name) ->
+        delete_container(State, Name, []).
+delete_container(State, Name, Options) ->
+        delete_container(State, Name, Options, ?gen_server_call_default_timeout).
+delete_container(State, Name, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?blob_service, State),
         ReqOptions = [{method, delete},
                       {path, Name},
@@ -527,42 +341,18 @@ handle_call({delete_container, Name, Options}, _From, State) ->
         RequestContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, RequestContext),
-        return_response(Code, Body, State, ?http_accepted, deleted);
+        return_response(Code, Body, State, ?http_accepted, deleted).
 
-% Lease a container
-handle_call({lease_container, Name, Mode, Options}, _From, State) ->
-        ServiceContext = new_service_context(?blob_service, State),
-        Params = [{comp, lease},
-                  {res_type, container},
-                  {lease_action, Mode}],
-        ReqOptions = [{method, put},
-                      {path, Name},
-                      {params, Params ++ Options}],
-        ReqContext = new_req_context(?blob_service, ReqOptions, State),
-
-        {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_accepted, deleted);
-
-% List blobs
-handle_call({list_blobs, Name, Options}, _From, State) ->
-        ServiceContext = new_service_context(?blob_service, State),
-        Params = [{comp, list},
-                  {res_type, container}],
-        ReqOptions = [{path, Name},
-                      {params, Params ++ Options}],
-        ReqContext = new_req_context(?blob_service, ReqOptions, State),
-
-        {?http_ok, Body} = execute_request(ServiceContext, ReqContext),
-        {ok, Blobs} = erlazure_blob:parse_blob_list(Body),
-        {reply, Blobs, State};
-
-% Put block blob
-handle_call({put_blob, Container, Name, Type = block_blob, Data, Options}, _From, State) ->
+put_block_blob(State, Container, Name, Data) ->
+        put_block_blob(State, Container, Name, Data, []).
+put_block_blob(State, Container, Name, Data, Options) ->
+        put_block_blob(State, Container, Name, Data, Options, ?gen_server_call_default_timeout).
+put_block_blob(State, Container, Name, Data, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?blob_service, State),
         ReqOptions = [{method, put},
                       {path, lists:concat([Container, "/", Name])},
                       {body, Data},
-                      {params, [{blob_type, Type}] ++ Options}],
+                      {params, [{blob_type, block_blob}] ++ Options}],
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
         ReqContext1 = case proplists:get_value(content_type, Options) of
                         undefined    -> ReqContext#req_context{ content_type = "application/octet-stream" };
@@ -570,12 +360,15 @@ handle_call({put_blob, Container, Name, Type = block_blob, Data, Options}, _From
                       end,
 
         {Code, Body} = execute_request(ServiceContext, ReqContext1),
-        return_response(Code, Body, State, ?http_created, created);
+        return_response(Code, Body, State, ?http_created, created).
 
-% Put page blob
-handle_call({put_blob, Container, Name, Type = page_blob, ContentLength, Options}, _From, State) ->
+put_page_blob(State, Container, Name, ContentLength) ->
+        put_page_blob(State, Container, Name, ContentLength, []).
+put_page_blob(State, Container, Name, ContentLength, Options) ->
+        put_page_blob(State, Container, Name, ContentLength, Options, ?gen_server_call_default_timeout).
+put_page_blob(State, Container, Name, ContentLength, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?blob_service, State),
-        Params = [{blob_type, Type},
+        Params = [{blob_type, page_blob},
                   {blob_content_length, ContentLength}],
         ReqOptions = [{method, put},
                       {path, lists:concat([Container, "/", Name])},
@@ -583,12 +376,15 @@ handle_call({put_blob, Container, Name, Type = page_blob, ContentLength, Options
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_created, created);
+        return_response(Code, Body, State, ?http_created, created).
 
-% Put append blob
-handle_call({put_blob, Container, Name, Type = append_blob, Options}, _From, State) ->
+put_append_blob(State, Container, Name) ->
+        put_append_blob(State, Container, Name, []).
+put_append_blob(State, Container, Name, Options) ->
+        put_append_blob(State, Container, Name, Options, ?gen_server_call_default_timeout).
+put_append_blob(State, Container, Name, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?blob_service, State),
-        Params = [{blob_type, Type}],
+        Params = [{blob_type, append_blob}],
         ReqOptions = [{method, put},
                       {path, lists:concat([Container, "/", Name])},
                       {params, Params ++ Options}],
@@ -599,10 +395,13 @@ handle_call({put_blob, Container, Name, Type = append_blob, Options}, _From, Sta
                      end,
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_created, created);
+        return_response(Code, Body, State, ?http_created, created).
 
-% Append block
-handle_call({append_block, Container, Name, Data, Options}, _From, State) ->
+append_block(State, Container, Name, Data) ->
+        append_block(State, Container, Name, Data, []).
+append_block(State, Container, Name, Data, Options) ->
+        append_block(State, Container, Name, Data, Options, ?gen_server_call_default_timeout).
+append_block(State, Container, Name, Data, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?blob_service, State),
         Params = [{comp, "appendblock"}],
         ReqOptions = [{method, put},
@@ -612,10 +411,29 @@ handle_call({append_block, Container, Name, Data, Options}, _From, State) ->
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_created, appended);
+        return_response(Code, Body, State, ?http_created, appended).
 
-% Get blob
-handle_call({get_blob, Container, Blob, Options}, _From, State) ->
+list_blobs(State, Container) ->
+        list_blobs(State, Container, []).
+list_blobs(State, Container, Options) ->
+        list_blobs(State, Container, Options, ?gen_server_call_default_timeout).
+list_blobs(State, Container, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+        ServiceContext = new_service_context(?blob_service, State),
+        Params = [{comp, list},
+                  {res_type, container}],
+        ReqOptions = [{path, Container},
+                      {params, Params ++ Options}],
+        ReqContext = new_req_context(?blob_service, ReqOptions, State),
+
+        {?http_ok, Body} = execute_request(ServiceContext, ReqContext),
+        {ok, Blobs} = erlazure_blob:parse_blob_list(Body),
+        Blobs.
+
+get_blob(State, Container, Blob) ->
+        get_blob(State, Container, Blob, []).
+get_blob(State, Container, Blob, Options) ->
+        get_blob(State, Container, Blob, Options, ?gen_server_call_default_timeout).
+get_blob(State, Container, Blob, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?blob_service, State),
         ReqOptions = [{path, lists:concat([Container, "/", Blob])},
                       {params, Options}],
@@ -624,14 +442,17 @@ handle_call({get_blob, Container, Blob, Options}, _From, State) ->
         {Code, Body} = execute_request(ServiceContext, ReqContext),
         case Code of
           ?http_ok ->
-            {reply, {ok, Body}, State};
+            {ok, Body};
           ?http_partial_content->
-            {reply, {ok, Body}, State};
-          _ -> {reply, {error, Body}, State}
-        end;
+            {ok, Body};
+          _ -> {error, Body}
+        end.
 
-% Snapshot blob
-handle_call({snapshot_blob, Container, Blob, Options}, _From, State) ->
+snapshot_blob(State, Container, Blob) ->
+        snapshot_blob(State, Container, Blob, []).
+snapshot_blob(State, Container, Blob, Options) ->
+        snapshot_blob(State, Container, Blob, Options, ?gen_server_call_default_timeout).
+snapshot_blob(State, Container, Blob, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?blob_service, State),
         ReqOptions = [{method, put},
                       {path, lists:concat([Container, "/", Blob])},
@@ -639,10 +460,13 @@ handle_call({snapshot_blob, Container, Blob, Options}, _From, State) ->
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_created, created);
+        return_response(Code, Body, State, ?http_created, created).
 
-% Copy blob
-handle_call({copy_blob, Container, Blob, Source, Options}, _From, State) ->
+copy_blob(State, Container, Blob, Source) ->
+        copy_blob(State, Container, Blob, Source, []).
+copy_blob(State, Container, Blob, Source, Options) ->
+        copy_blob(State, Container, Blob, Source, Options, ?gen_server_call_default_timeout).
+copy_blob(State, Container, Blob, Source, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?blob_service, State),
         ReqOptions = [{method, put},
                       {path, lists:concat([Container, "/", Blob])},
@@ -650,10 +474,13 @@ handle_call({copy_blob, Container, Blob, Source, Options}, _From, State) ->
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_accepted, created);
+        return_response(Code, Body, State, ?http_accepted, created).
 
-% Delete blob
-handle_call({delete_blob, Container, Blob, Options}, _From, State) ->
+delete_blob(State, Container, Blob) ->
+        delete_blob(State, Container, Blob, []).
+delete_blob(State, Container, Blob, Options) ->
+        delete_blob(State, Container, Blob, Options, ?gen_server_call_default_timeout).
+delete_blob(State, Container, Blob, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?blob_service, State),
         ReqOptions = [{method, delete},
                       {path, lists:concat([Container, "/", Blob])},
@@ -661,24 +488,30 @@ handle_call({delete_blob, Container, Blob, Options}, _From, State) ->
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_accepted, deleted);
+        return_response(Code, Body, State, ?http_accepted, deleted).
 
-% Put block
-handle_call({put_block, Container, Blob, BlockId, Content, Options}, _From, State) ->
+put_block(State, Container, Blob, BlockId, BlockContent) ->
+        put_block(State, Container, Blob, BlockId, BlockContent, []).
+put_block(State, Container, Blob, BlockId, BlockContent, Options) ->
+        put_block(State, Container, Blob, BlockId, BlockContent, Options, ?gen_server_call_default_timeout).
+put_block(State, Container, Blob, BlockId, BlockContent, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?blob_service, State),
         Params = [{comp, block},
                   {blob_block_id, base64:encode_to_string(BlockId)}],
         ReqOptions = [{method, put},
                       {path, lists:concat([Container, "/", Blob])},
-                      {body, Content},
+                      {body, BlockContent},
                       {params, Params ++ Options}],
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_created, created);
+        return_response(Code, Body, State, ?http_created, created).
 
-% Put block list
-handle_call({put_block_list, Container, Blob, BlockRefs, Options}, _From, State) ->
+put_block_list(State, Container, Blob, BlockRefs) ->
+        put_block_list(State, Container, Blob, BlockRefs, []).
+put_block_list(State, Container, Blob, BlockRefs, Options) ->
+        put_block_list(State, Container, Blob, BlockRefs, Options, ?gen_server_call_default_timeout).
+put_block_list(State, Container, Blob, BlockRefs, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?blob_service, State),
         ReqOptions = [{method, put},
                       {path, lists:concat([Container, "/", Blob])},
@@ -687,10 +520,13 @@ handle_call({put_block_list, Container, Blob, BlockRefs, Options}, _From, State)
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_created, created);
+        return_response(Code, Body, State, ?http_created, created).
 
-% Get block list
-handle_call({get_block_list, Container, Blob, Options}, _From, State) ->
+get_block_list(State, Container, Blob) ->
+        get_block_list(State, Container, Blob, []).
+get_block_list(State, Container, Blob, Options) ->
+        get_block_list(State, Container, Blob, Options, ?gen_server_call_default_timeout).
+get_block_list(State, Container, Blob, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?blob_service, State),
         ReqOptions = [{path, lists:concat([Container, "/", Blob])},
                       {params, [{comp, "blocklist"}] ++ Options}],
@@ -698,10 +534,13 @@ handle_call({get_block_list, Container, Blob, Options}, _From, State) ->
 
         {?http_ok, Body} = execute_request(ServiceContext, ReqContext),
         {ok, BlockList} = erlazure_blob:parse_block_list(Body),
-        {reply, BlockList, State};
+        BlockList.
 
-% Acquire blob lease
-handle_call({acquire_blob_lease, Container, Blob, ProposedId, Duration, Options}, _From, State) ->
+acquire_blob_lease(State, Container, Blob, Duration) ->
+        acquire_blob_lease(State, Container, Blob, Duration, []).
+acquire_blob_lease(State, Container, Blob, Duration, Options) ->
+        acquire_blob_lease(State, Container, Blob, "", Duration, Options, ?gen_server_call_default_timeout).
+acquire_blob_lease(State, Container, Blob, ProposedId, Duration, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
         ServiceContext = new_service_context(?blob_service, State),
 
         Params = [{lease_action, acquire},
@@ -715,20 +554,44 @@ handle_call({acquire_blob_lease, Container, Blob, ProposedId, Duration, Options}
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
 
         {Code, Body} = execute_request(ServiceContext, ReqContext),
-        return_response(Code, Body, State, ?http_created, acquired);
+        return_response(Code, Body, State, ?http_created, acquired).
 
-% List tables
-handle_call({list_tables, Options}, _From, State) ->
+lease_container(State, Name, Mode) ->
+        lease_container(State, Name, Mode, []).
+lease_container(State, Name, Mode, Options) ->
+        lease_container(State, Name, Mode, Options, ?gen_server_call_default_timeout).
+lease_container(State, Name, Mode, Options, Timeout) when is_atom(Mode); is_list(Options); is_integer(Timeout) ->
+        ServiceContext = new_service_context(?blob_service, State),
+        Params = [{comp, lease},
+                  {res_type, container},
+                  {lease_action, Mode}],
+        ReqOptions = [{method, put},
+                      {path, Name},
+                      {params, Params ++ Options}],
+        ReqContext = new_req_context(?blob_service, ReqOptions, State),
+
+        {Code, Body} = execute_request(ServiceContext, ReqContext),
+        return_response(Code, Body, State, ?http_accepted, deleted).
+
+%%====================================================================
+%% Table
+%%====================================================================
+
+list_tables(State) ->
+        list_tables(State, [], ?gen_server_call_default_timeout).
+list_tables(State, Options, Timeout) when is_list(Options); is_integer(Timeout)->
         ServiceContext = new_service_context(?table_service, State),
         ReqOptions = [{path, "Tables"},
                       {params, Options}],
         ReqContext = new_req_context(?table_service, ReqOptions, State),
 
         {?http_ok, Body} = execute_request(ServiceContext, ReqContext),
-        {reply, {ok, erlazure_table:parse_table_list(Body)}, State};
+        {ok, erlazure_table:parse_table_list(Body)}.
 
-% New tables
-handle_call({new_table, TableName}, _From, State) ->
+new_table(State, TableName) when is_list(TableName) ->
+        new_table(State, list_to_binary(TableName));
+
+new_table(State, TableName) when is_binary(TableName) ->
         ServiceContext = new_service_context(?table_service, State),
         ReqOptions = [{path, "Tables"},
                       {method, post},
@@ -736,34 +599,18 @@ handle_call({new_table, TableName}, _From, State) ->
         ReqContext = new_req_context(?table_service, ReqOptions, State),
         ReqContext1 = ReqContext#req_context{ content_type = ?json_content_type },
         {Code, Body} = execute_request(ServiceContext, ReqContext1),
-        return_response(Code, Body, State, ?http_created, created);
+        return_response(Code, Body, State, ?http_created, created).
 
-% Get host
-handle_call({get_host, Service, Domain}, _From, State) ->
-        Account = State#state.account,
-        Host    = lists:concat([Account, ".", erlang:atom_to_list(Service), Domain]),
-        {reply, Host, State};
+delete_table(State, TableName) when is_binary(TableName) ->
+        delete_table(State, binary_to_list(TableName));
 
-% Delete table
-handle_call({delete_table, TableName}, _From, State) ->
+delete_table(State, TableName) when is_list(TableName) ->
         ServiceContext = new_service_context(?table_service, State),
         ReqOptions = [{path, io:format("Tables('~s')", [TableName])},
                       {method, delete}],
         ReqContext = new_req_context(?table_service, ReqOptions, State),
         {?http_no_content, _} = execute_request(ServiceContext, ReqContext),
-        {reply, {ok, deleted}, State}.
-
-handle_cast(_Msg, State) ->
-        {noreply, State}.
-
-handle_info(_Info, State) ->
-        {noreply, State}.
-
-terminate(_Reason, _State) ->
-        ok.
-
-code_change(_OldVer, State, _Extra) ->
-        {ok, State}.
+        {ok, deleted}.
 
 %%--------------------------------------------------------------------
 %% Private functions
@@ -890,18 +737,19 @@ build_uri_base(Service, #state{account = Account}) ->
 
 get_host(Service, Account) ->
         lists:concat([Account, ".", erlang:atom_to_list(Service), ".core.windows.net"]).
-get_host(Pid, Service, []) ->
+get_host(State, Service, []) ->
         Domain  = ".core.windows.net",
         Timeout = ?gen_server_call_default_timeout,
-        get_host(Pid, Service, Domain, Timeout);
-get_host(Pid, Service, Timeout) when is_integer(Timeout) ->
+        get_host(State, Service, Domain, Timeout);
+get_host(State, Service, Timeout) when is_integer(Timeout) ->
         Domain  = ".core.windows.net",
-        get_host(Pid, Service, Domain, Timeout);
-get_host(Pid, Service, Domain) when is_list(Domain) ->
+        get_host(State, Service, Domain, Timeout);
+get_host(State, Service, Domain) when is_list(Domain) ->
         Timeout = ?gen_server_call_default_timeout,
-        get_host(Pid, Service, Domain, Timeout).
-get_host(Pid, Service, Domain, Timeout) when is_list(Domain), is_integer(Timeout) ->
-        gen_server:call(Pid, {get_host, Service, Domain}, Timeout).
+        get_host(State, Service, Domain, Timeout).
+get_host(State, Service, Domain, Timeout) when is_list(Domain), is_integer(Timeout) ->
+        Account = State#state.account,
+        lists:concat([Account, ".", erlang:atom_to_list(Service), Domain]).
 
 -spec canonicalize_headers([string()]) -> string().
 canonicalize_headers(Headers) ->
@@ -1049,9 +897,9 @@ get_req_common_param_specs() ->
 return_response(Code, Body, State, ExpectedResponseCode, SuccessAtom) ->
   case Code of
     ExpectedResponseCode ->
-      {reply, {ok, SuccessAtom}, State};
+      {ok, SuccessAtom};
     _ ->
-      {reply, {error, Body}, State}
+      {error, Body}
   end.
 
 -spec parse_init_opts(init_opts()) -> state_opts().

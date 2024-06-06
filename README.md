@@ -47,9 +47,9 @@ Erlazure requires OTP version R16+.
 
 ## Starting an instance of erlazure
 
-Start an instance of erlazure by calling ```erlazure:start/2``` where **Account** is Storage account name and **Key** is Storage account key.
+Start an instance of erlazure by calling `erlazure:new/2` where **Account** is Storage account name and **Key** is Storage account key.
 ```erlang
-{ok, Pid} = erlazure:start(Account, Key)
+{ok, State} = erlazure:new(Account, Key)
 ```
 Account and Key are strings.
 
@@ -60,7 +60,7 @@ Account and Key are strings.
 Account = "devstoreaccount1".
 Key = "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==".
 %% Mind the trailing slash at the end of the endpoint.
-{ok, Pid} = erlazure:start(#{account => Account, key => Key, endpoint => "http://127.0.0.1:10000/"})
+{ok, State} = erlazure:new(#{account => Account, key => Key, endpoint => "http://127.0.0.1:10000/"})
 ```
 
 ## Calling Azure services
@@ -76,23 +76,23 @@ For a list of supported options for each azure service request please consult ms
 
 ### Upload block blob
 ```
-{ok, Pid} = erlazure:start("storage", "2o4b4tHpoWifLU+BlyzsIG1VtlO9LgBRFyl1qLw/+w9/ZszSxKGIK8JYac/UEJp5r8HKgiOiG8YTqGS9otAYWA=="),
+{ok, State} = erlazure:new("storage", "2o4b4tHpoWifLU+BlyzsIG1VtlO9LgBRFyl1qLw/+w9/ZszSxKGIK8JYac/UEJp5r8HKgiOiG8YTqGS9otAYWA=="),
 {ok, Binary} = file:read("/path/to/some/small/file"),
-{ok, created} = erlazure:put_block_blob(Pid, "uploads", "test_upload.file", Binary).
+{ok, created} = erlazure:put_block_blob(State, "uploads", "test_upload.file", Binary).
 ```
 ### Upload block blob with timeout set
 Uploads block blob and waits no longer than 15 seconds for erlazure to finish the upload
 ```
-{ok, Pid} = erlazure:start("storage", "2o4b4tHpoWifLU+BlyzsIG1VtlO9LgBRFyl1qLw/+w9/ZszSxKGIK8JYac/UEJp5r8HKgiOiG8YTqGS9otAYWA=="),
+{ok, State} = erlazure:new("storage", "2o4b4tHpoWifLU+BlyzsIG1VtlO9LgBRFyl1qLw/+w9/ZszSxKGIK8JYac/UEJp5r8HKgiOiG8YTqGS9otAYWA=="),
 {ok, Binary} = file:read("/path/to/some/other/file"),
-{ok, created} = erlazure:put_block_blob(Pid, "uploads", "test_upload2.file", Binary, [], 15000).
+{ok, created} = erlazure:put_block_blob(State, "uploads", "test_upload2.file", Binary, [], 15000).
 ```
 
 ### Get 20 messages from a queue
 Retrieves max 20 messages from a queue
 ```
-{ok, Pid} = erlazure:start("storage", "2o4b4tHpoWifLU+BlyzsIG1VtlO9LgBRFyl1qLw/+w9/ZszSxKGIK8JYac/UEJp5r8HKgiOiG8YTqGS9otAYWA=="),
-{ok, Messages} = erlazure:get_messages(Pid, "test_queue", [{num_of_messages, 20}]).
+{ok, State} = erlazure:new("storage", "2o4b4tHpoWifLU+BlyzsIG1VtlO9LgBRFyl1qLw/+w9/ZszSxKGIK8JYac/UEJp5r8HKgiOiG8YTqGS9otAYWA=="),
+{ok, Messages} = erlazure:get_messages(State, "test_queue", [{num_of_messages, 20}]).
 ```
 
 ## License

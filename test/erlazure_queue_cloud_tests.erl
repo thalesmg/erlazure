@@ -123,55 +123,55 @@ peek_messages_test_() ->
                   fun peek_messages/1}.
 
 start() ->
-    {ok, Pid} = erlazure:start(?account_name, ?account_key),
+    {ok, State} = erlazure:new(?account_name, ?account_key),
     UniqueQueueName = get_queue_unique_name(),
-    {Pid, UniqueQueueName}.
+    {State, UniqueQueueName}.
 
 start_create() ->
-                {ok, Pid} = erlazure:start(?account_name, ?account_key),
+                {ok, State} = erlazure:new(?account_name, ?account_key),
                 UniqueQueueName = get_queue_unique_name(),
-                {ok, created} = erlazure:create_queue(Pid, UniqueQueueName),
-                {Pid, UniqueQueueName}.
+                {ok, created} = erlazure:create_queue(State, UniqueQueueName),
+                {State, UniqueQueueName}.
 
-stop({Pid, QueueName}) ->
-                erlazure:delete_queue(Pid, QueueName).
+stop({State, QueueName}) ->
+                erlazure:delete_queue(State, QueueName).
 
-create_queue({Pid, QueueName}) ->
-                Response = erlazure:create_queue(Pid, QueueName),
+create_queue({State, QueueName}) ->
+                Response = erlazure:create_queue(State, QueueName),
                 ?_assertMatch({ok, created}, Response).
 
-create_queue_duplicate_name({Pid, QueueName}) ->
-                Response = erlazure:create_queue(Pid, QueueName),
+create_queue_duplicate_name({State, QueueName}) ->
+                Response = erlazure:create_queue(State, QueueName),
                 ?_assertMatch({error, already_created}, Response).
 
-list_queues({Pid, QueueName}) ->
+list_queues({State, QueueName}) ->
                 LowerQueueName = string:to_lower(QueueName),
-                {ok, {Queues, _Metadata}} = erlazure:list_queues(Pid),
+                {ok, {Queues, _Metadata}} = erlazure:list_queues(State),
                 Queue = lists:keyfind(LowerQueueName, 2, Queues),
                 ?_assertMatch(#queue { name = LowerQueueName }, Queue).
 
-delete_queue({Pid, QueueName}) ->
-                Response = erlazure:delete_queue(Pid, QueueName),
+delete_queue({State, QueueName}) ->
+                Response = erlazure:delete_queue(State, QueueName),
                 ?_assertMatch({ok, deleted}, Response).
 
-delete_queue_twice({Pid, QueueName}) ->
-                {ok, deleted} = erlazure:delete_queue(Pid, QueueName),
-                Response = erlazure:delete_queue(Pid, QueueName),
+delete_queue_twice({State, QueueName}) ->
+                {ok, deleted} = erlazure:delete_queue(State, QueueName),
+                Response = erlazure:delete_queue(State, QueueName),
                 ?_assertMatch({ok, deleted}, Response).
 
-set_queue_acl({Pid, QueueName}) ->
+set_queue_acl({State, QueueName}) ->
                 SignedId = get_queue_test_acl(),
-                Response = erlazure:set_queue_acl(Pid, QueueName, SignedId),
+                Response = erlazure:set_queue_acl(State, QueueName, SignedId),
                 ?_assertMatch({ok, created}, Response).
 
-get_queue_empty_acl({Pid, QueueName}) ->
-                Response = erlazure:get_queue_acl(Pid, QueueName),
+get_queue_empty_acl({State, QueueName}) ->
+                Response = erlazure:get_queue_acl(State, QueueName),
                 ?_assertMatch({ok, no_acl}, Response).
 
-get_queue_acl({Pid, QueueName}) ->
+get_queue_acl({State, QueueName}) ->
                 SignedId = get_queue_test_acl(),
-                {ok, created} = erlazure:set_queue_acl(Pid, QueueName, SignedId),
-                {ok, Response} = erlazure:get_queue_acl(Pid, QueueName),
+                {ok, created} = erlazure:set_queue_acl(State, QueueName, SignedId),
+                {ok, Response} = erlazure:get_queue_acl(State, QueueName),
 
                 Id = SignedId#signed_id.id,
                 Start = string:left(SignedId#signed_id.access_policy#access_policy.start, 19),
@@ -183,41 +183,41 @@ get_queue_acl({Pid, QueueName}) ->
                  ?_assertMatch([],
                                string:tokens(Response#signed_id.access_policy#access_policy.permission, Permission))].
 
-put_message({Pid, QueueName}) ->
-                Response = erlazure:put_message(Pid, QueueName, "test message"),
+put_message({State, QueueName}) ->
+                Response = erlazure:put_message(State, QueueName, "test message"),
                 ?_assertMatch({ok, created}, Response).
 
-get_message({Pid, QueueName}) ->
-                {ok, created} = erlazure:put_message(Pid, QueueName, "test message"),
-                Response = erlazure:get_messages(Pid, QueueName),
+get_message({State, QueueName}) ->
+                {ok, created} = erlazure:put_message(State, QueueName, "test message"),
+                Response = erlazure:get_messages(State, QueueName),
                 ?_assertMatch({ok, [#queue_message { text = "test message"}]}, Response).
 
-get_messages({Pid, QueueName}) ->
-                {ok, created} = erlazure:put_message(Pid, QueueName, "test message1"),
-                {ok, created} = erlazure:put_message(Pid, QueueName, "test message2"),
-                {ok, created} = erlazure:put_message(Pid, QueueName, "test message3"),
-                {ok, Messages} = erlazure:get_messages(Pid, QueueName, [{num_of_messages, 32}]),
+get_messages({State, QueueName}) ->
+                {ok, created} = erlazure:put_message(State, QueueName, "test message1"),
+                {ok, created} = erlazure:put_message(State, QueueName, "test message2"),
+                {ok, created} = erlazure:put_message(State, QueueName, "test message3"),
+                {ok, Messages} = erlazure:get_messages(State, QueueName, [{num_of_messages, 32}]),
                 ?_assertEqual(3, lists:flatlength(Messages)).
 
-get_messages_removes_from_queue({Pid, QueueName}) ->
-                {ok, created} = erlazure:put_message(Pid, QueueName, "test message1"),
-                {ok, created} = erlazure:put_message(Pid, QueueName, "test message2"),
-                {ok, created} = erlazure:put_message(Pid, QueueName, "test message3"),
-                {ok, _Messages} = erlazure:get_messages(Pid, QueueName, [{num_of_messages, 32}]),
-                {ok, Messages} = erlazure:get_messages(Pid, QueueName, [{num_of_messages, 32}]),
+get_messages_removes_from_queue({State, QueueName}) ->
+                {ok, created} = erlazure:put_message(State, QueueName, "test message1"),
+                {ok, created} = erlazure:put_message(State, QueueName, "test message2"),
+                {ok, created} = erlazure:put_message(State, QueueName, "test message3"),
+                {ok, _Messages} = erlazure:get_messages(State, QueueName, [{num_of_messages, 32}]),
+                {ok, Messages} = erlazure:get_messages(State, QueueName, [{num_of_messages, 32}]),
                 ?_assertMatch([], Messages).
 
-peek_message({Pid, QueueName}) ->
-                {ok, created} = erlazure:put_message(Pid, QueueName, "test message 1"),
-                {ok, created} = erlazure:put_message(Pid, QueueName, "test message 2"),
-                Response = erlazure:peek_messages(Pid, QueueName),
+peek_message({State, QueueName}) ->
+                {ok, created} = erlazure:put_message(State, QueueName, "test message 1"),
+                {ok, created} = erlazure:put_message(State, QueueName, "test message 2"),
+                Response = erlazure:peek_messages(State, QueueName),
                 ?_assertMatch({ok, [#queue_message { text = "test message 1" }]}, Response).
 
-peek_messages({Pid, QueueName}) ->
-                {ok, created} = erlazure:put_message(Pid, QueueName, "test message 1"),
-                {ok, created} = erlazure:put_message(Pid, QueueName, "test message 2"),
-                {ok, created} = erlazure:put_message(Pid, QueueName, "test message 3"),
-                {ok, Messages} = erlazure:peek_messages(Pid, QueueName, [{num_of_messages, 32}]),
+peek_messages({State, QueueName}) ->
+                {ok, created} = erlazure:put_message(State, QueueName, "test message 1"),
+                {ok, created} = erlazure:put_message(State, QueueName, "test message 2"),
+                {ok, created} = erlazure:put_message(State, QueueName, "test message 3"),
+                {ok, Messages} = erlazure:peek_messages(State, QueueName, [{num_of_messages, 32}]),
                 ?_assertEqual(3, lists:flatlength(Messages)).
 
 get_queue_unique_name() ->
