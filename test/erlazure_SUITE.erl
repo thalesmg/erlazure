@@ -73,17 +73,17 @@ end_per_testcase(_TestCase, Config) ->
 %% Helper fns
 %%------------------------------------------------------------------------------
 
-start(Config) ->
+new(Config) ->
     Endpoint = ?config(endpoint, Config),
-    {ok, Pid} = erlazure:start(#{account => ?ACCOUNT, key => ?KEY, endpoint => Endpoint}),
-    Pid.
+    {ok, State} = erlazure:new(#{account => ?ACCOUNT, key => ?KEY, endpoint => Endpoint}),
+    State.
 
 delete_all_containers(Config) ->
-    Pid = start(Config),
-    {Containers, _} = erlazure:list_containers(Pid),
+    State = new(Config),
+    {Containers, _} = erlazure:list_containers(State),
     lists:foreach(
       fun(#blob_container{name = Name}) ->
-        {ok, deleted} = erlazure:delete_container(Pid, Name)
+        {ok, deleted} = erlazure:delete_container(State, Name)
       end,
       Containers).
 
@@ -98,118 +98,118 @@ container_name(Name) ->
 %% Basic smoke test for basic blob storage operations.
 t_blob_storage_smoke_test(Config) ->
     Endpoint = ?config(endpoint, Config),
-    {ok, Pid} = erlazure:start(#{account => ?ACCOUNT, key => ?KEY, endpoint => Endpoint}),
+    {ok, State} = erlazure:new(#{account => ?ACCOUNT, key => ?KEY, endpoint => Endpoint}),
     %% Create a container
     Container = container_name(?FUNCTION_NAME),
-    ?assertMatch({[], _}, erlazure:list_containers(Pid)),
-    ?assertMatch({ok, created}, erlazure:create_container(Pid, Container)),
+    ?assertMatch({[], _}, erlazure:list_containers(State)),
+    ?assertMatch({ok, created}, erlazure:create_container(State, Container)),
     %% Upload some blobs
-    ?assertMatch({ok, created}, erlazure:put_block_blob(Pid, Container, "blob1", <<"1">>)),
-    ?assertMatch({ok, created}, erlazure:put_block_blob(Pid, Container, "blob2", <<"2">>)),
+    ?assertMatch({ok, created}, erlazure:put_block_blob(State, Container, "blob1", <<"1">>)),
+    ?assertMatch({ok, created}, erlazure:put_block_blob(State, Container, "blob2", <<"2">>)),
     ?assertMatch({[#cloud_blob{name = "blob1"}, #cloud_blob{name = "blob2"}], _},
-                 erlazure:list_blobs(Pid, Container)),
+                 erlazure:list_blobs(State, Container)),
     %% Read back data
-    ?assertMatch({ok, <<"1">>}, erlazure:get_blob(Pid, Container, "blob1")),
-    ?assertMatch({ok, <<"2">>}, erlazure:get_blob(Pid, Container, "blob2")),
+    ?assertMatch({ok, <<"1">>}, erlazure:get_blob(State, Container, "blob1")),
+    ?assertMatch({ok, <<"2">>}, erlazure:get_blob(State, Container, "blob2")),
     %% Delete blob
-    ?assertMatch({ok, deleted}, erlazure:delete_blob(Pid, Container, "blob1")),
+    ?assertMatch({ok, deleted}, erlazure:delete_blob(State, Container, "blob1")),
     ?assertMatch({[#cloud_blob{name = "blob2"}], _},
-                 erlazure:list_blobs(Pid, Container)),
+                 erlazure:list_blobs(State, Container)),
     %% Delete container
-    ?assertMatch({ok, deleted}, erlazure:delete_container(Pid, Container)),
+    ?assertMatch({ok, deleted}, erlazure:delete_container(State, Container)),
     ok.
 
 %% Basic smoke test to check that we can pass already wrapped keys to `erlazure:start`.
 t_blob_storage_wrapped_key(Config) ->
     Endpoint = ?config(endpoint, Config),
-    {ok, Pid} = erlazure:start(#{account => ?ACCOUNT, key => ?KEY, endpoint => Endpoint}),
-    ?assertMatch({[], _}, erlazure:list_containers(Pid)),
+    {ok, State} = erlazure:new(#{account => ?ACCOUNT, key => ?KEY, endpoint => Endpoint}),
+    ?assertMatch({[], _}, erlazure:list_containers(State)),
     ok.
 
 %% Basic smoke test for append blob storage operations.
 t_append_blob_smoke_test(Config) ->
     Endpoint = ?config(endpoint, Config),
-    {ok, Pid} = erlazure:start(#{account => ?ACCOUNT, key => ?KEY, endpoint => Endpoint}),
+    {ok, State} = erlazure:new(#{account => ?ACCOUNT, key => ?KEY, endpoint => Endpoint}),
     %% Create a container
     Container = container_name(?FUNCTION_NAME),
-    ?assertMatch({[], _}, erlazure:list_containers(Pid)),
-    ?assertMatch({ok, created}, erlazure:create_container(Pid, Container)),
+    ?assertMatch({[], _}, erlazure:list_containers(State)),
+    ?assertMatch({ok, created}, erlazure:create_container(State, Container)),
     %% Upload some blobs
     Opts = [{content_type, "text/csv"}],
-    ?assertMatch({ok, created}, erlazure:put_append_blob(Pid, Container, "blob1", Opts)),
-    ?assertMatch({ok, appended}, erlazure:append_block(Pid, Container, "blob1", <<"1">>)),
-    ?assertMatch({ok, appended}, erlazure:append_block(Pid, Container, "blob1", <<"\n">>)),
-    ?assertMatch({ok, appended}, erlazure:append_block(Pid, Container, "blob1", <<"2">>)),
-    ListedBlobs = erlazure:list_blobs(Pid, Container),
+    ?assertMatch({ok, created}, erlazure:put_append_blob(State, Container, "blob1", Opts)),
+    ?assertMatch({ok, appended}, erlazure:append_block(State, Container, "blob1", <<"1">>)),
+    ?assertMatch({ok, appended}, erlazure:append_block(State, Container, "blob1", <<"\n">>)),
+    ?assertMatch({ok, appended}, erlazure:append_block(State, Container, "blob1", <<"2">>)),
+    ListedBlobs = erlazure:list_blobs(State, Container),
     ?assertMatch({[#cloud_blob{name = "blob1"}], _},
                  ListedBlobs),
     {[#cloud_blob{name = "blob1", properties = BlobProps}], _} = ListedBlobs,
     ?assertMatch(#{content_type := "text/csv"}, maps:from_list(BlobProps)),
     %% Read back data
-    ?assertMatch({ok, <<"1\n2">>}, erlazure:get_blob(Pid, Container, "blob1")),
+    ?assertMatch({ok, <<"1\n2">>}, erlazure:get_blob(State, Container, "blob1")),
     %% Delete blob
-    ?assertMatch({ok, deleted}, erlazure:delete_blob(Pid, Container, "blob1")),
-    ?assertMatch({[], _}, erlazure:list_blobs(Pid, Container)),
+    ?assertMatch({ok, deleted}, erlazure:delete_blob(State, Container, "blob1")),
+    ?assertMatch({[], _}, erlazure:list_blobs(State, Container)),
     %% Delete container
-    ?assertMatch({ok, deleted}, erlazure:delete_container(Pid, Container)),
+    ?assertMatch({ok, deleted}, erlazure:delete_container(State, Container)),
     ok.
 
 %% Test error handling when endpoint is unavailable
 t_blob_failure_to_connect(_Config) ->
     BadEndpoint = "http://127.0.0.2:65535/",
-    {ok, Pid} = erlazure:start(#{account => ?ACCOUNT, key => ?KEY, endpoint => BadEndpoint}),
-    ?assertMatch({error, {failed_connect, _}}, erlazure:list_containers(Pid)),
-    ?assertMatch({error, {failed_connect, _}}, erlazure:create_container(Pid, "c")),
-    ?assertMatch({error, {failed_connect, _}}, erlazure:delete_container(Pid, "c")),
-    ?assertMatch({error, {failed_connect, _}}, erlazure:put_append_blob(Pid, "c", "b1")),
-    ?assertMatch({error, {failed_connect, _}}, erlazure:put_block_blob(Pid, "c", "b1", <<"a">>)),
-    ?assertMatch({error, {failed_connect, _}}, erlazure:append_block(Pid, "c", "b1", <<"a">>)),
-    ?assertMatch({error, {failed_connect, _}}, erlazure:get_blob(Pid, "c", "b1")),
+    {ok, State} = erlazure:new(#{account => ?ACCOUNT, key => ?KEY, endpoint => BadEndpoint}),
+    ?assertMatch({error, {failed_connect, _}}, erlazure:list_containers(State)),
+    ?assertMatch({error, {failed_connect, _}}, erlazure:create_container(State, "c")),
+    ?assertMatch({error, {failed_connect, _}}, erlazure:delete_container(State, "c")),
+    ?assertMatch({error, {failed_connect, _}}, erlazure:put_append_blob(State, "c", "b1")),
+    ?assertMatch({error, {failed_connect, _}}, erlazure:put_block_blob(State, "c", "b1", <<"a">>)),
+    ?assertMatch({error, {failed_connect, _}}, erlazure:append_block(State, "c", "b1", <<"a">>)),
+    ?assertMatch({error, {failed_connect, _}}, erlazure:get_blob(State, "c", "b1")),
     ok.
 
 %% Basic smoke test for block blob storage operations.
 t_put_block(Config) ->
     Endpoint = ?config(endpoint, Config),
-    {ok, Pid} = erlazure:start(#{account => ?ACCOUNT, key => ?KEY, endpoint => Endpoint}),
+    {ok, State} = erlazure:new(#{account => ?ACCOUNT, key => ?KEY, endpoint => Endpoint}),
     %% Create a container
     Container = container_name(?FUNCTION_NAME),
-    ?assertMatch({[], _}, erlazure:list_containers(Pid)),
-    ?assertMatch({ok, created}, erlazure:create_container(Pid, Container)),
+    ?assertMatch({[], _}, erlazure:list_containers(State)),
+    ?assertMatch({ok, created}, erlazure:create_container(State, Container)),
     %% Upload some blocks.  Note: this content-type will be overwritten later by `put_block_list'.
     Opts1 = [{content_type, "application/json"}],
     BlobName = "blob1",
-    ?assertMatch({ok, created}, erlazure:put_block_blob(Pid, Container, BlobName, <<"0">>, Opts1)),
+    ?assertMatch({ok, created}, erlazure:put_block_blob(State, Container, BlobName, <<"0">>, Opts1)),
     %% Note: this short name is important for this test.  It'll produce a base64 string
     %% that's padded.  That padding must be URL-encoded when sending the request, but not
     %% when generating the string to sign.
     BlockId1 = <<"blo1">>,
-    ?assertMatch({ok, created}, erlazure:put_block(Pid, Container, BlobName, BlockId1, <<"a">>)),
+    ?assertMatch({ok, created}, erlazure:put_block(State, Container, BlobName, BlockId1, <<"a">>)),
     %% Testing iolists
     BlockId2 = <<"blo2">>,
-    ?assertMatch({ok, created}, erlazure:put_block(Pid, Container, BlobName, BlockId2, [<<"\n">>, ["b", [$\n]]])),
+    ?assertMatch({ok, created}, erlazure:put_block(State, Container, BlobName, BlockId2, [<<"\n">>, ["b", [$\n]]])),
     %% Not yet committed.  Contains only the data from the blob creation.
-    ?assertMatch({ok, <<"0">>}, erlazure:get_blob(Pid, Container, BlobName)),
+    ?assertMatch({ok, <<"0">>}, erlazure:get_blob(State, Container, BlobName)),
     %% Committing
     BlockList1 = [{BlockId1, latest}],
-    ?assertMatch({ok, created}, erlazure:put_block_list(Pid, Container, BlobName, BlockList1)),
+    ?assertMatch({ok, created}, erlazure:put_block_list(State, Container, BlobName, BlockList1)),
     %% Committed only first block.  Initial data was lost, as it was not in the block list.
-    ?assertMatch({ok, <<"a">>}, erlazure:get_blob(Pid, Container, BlobName)),
+    ?assertMatch({ok, <<"a">>}, erlazure:get_blob(State, Container, BlobName)),
     %% Block 2 was dropped after committing.
-    ?assertMatch({[#blob_block{id = "blo1"}], _}, erlazure:get_block_list(Pid, Container, BlobName)),
+    ?assertMatch({[#blob_block{id = "blo1"}], _}, erlazure:get_block_list(State, Container, BlobName)),
     BlockId3 = <<"blo3">>,
-    ?assertMatch({ok, created}, erlazure:put_block(Pid, Container, BlobName, BlockId3, [<<"\n">>, ["b", [$\n]]])),
+    ?assertMatch({ok, created}, erlazure:put_block(State, Container, BlobName, BlockId3, [<<"\n">>, ["b", [$\n]]])),
     %% Commit both blocks
     Opts2 = [{req_opts, [{headers, [{"x-ms-blob-content-type", "text/csv"}]}]}],
     BlockList2 = [{BlockId1, committed}, {BlockId3, uncommitted}],
-    ?assertMatch({ok, created}, erlazure:put_block_list(Pid, Container, BlobName, BlockList2, Opts2)),
-    ?assertMatch({ok, <<"a\nb\n">>}, erlazure:get_blob(Pid, Container, BlobName)),
+    ?assertMatch({ok, created}, erlazure:put_block_list(State, Container, BlobName, BlockList2, Opts2)),
+    ?assertMatch({ok, <<"a\nb\n">>}, erlazure:get_blob(State, Container, BlobName)),
     %% Check content type.
-    ListedBlobs = erlazure:list_blobs(Pid, Container),
+    ListedBlobs = erlazure:list_blobs(State, Container),
     ?assertMatch({[#cloud_blob{name = "blob1"}], _},
                  ListedBlobs),
     {[#cloud_blob{name = "blob1", properties = Props}], _} = ListedBlobs,
     %% Content-type from `put_block_list' prevails.
     ?assertMatch(#{content_type := "text/csv"}, maps:from_list(Props)),
     %% Delete container
-    ?assertMatch({ok, deleted}, erlazure:delete_container(Pid, Container)),
+    ?assertMatch({ok, deleted}, erlazure:delete_container(State, Container)),
     ok.
