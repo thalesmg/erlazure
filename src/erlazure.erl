@@ -556,7 +556,7 @@ delete_table(State, TableName) when is_list(TableName) ->
 %% Private functions
 %%--------------------------------------------------------------------
 
--spec execute_request(service_context(), req_context()) -> {non_neg_integer(), binary()}.
+-spec execute_request(service_context(), req_context()) -> {non_neg_integer(), binary()} | {error, any()}.
 execute_request(ServiceContext = #service_context{}, ReqContext = #req_context{}) ->
         DateHeader = if (ServiceContext#service_context.service =:= ?table_service) ->
                           {"Date", httpd_util:rfc1123_date()};
