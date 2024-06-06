@@ -35,48 +35,47 @@
 -include("../include/erlazure.hrl").
 
 -define(json_content_type, "application/json").
--define(gen_server_call_default_timeout, 30000).
 
 %% API
 -export([new/1, new/2]).
 
 %% Queue API
--export([list_queues/1, list_queues/2, list_queues/3]).
--export([set_queue_acl/3, set_queue_acl/4, set_queue_acl/5]).
--export([get_queue_acl/2, get_queue_acl/3, get_queue_acl/4]).
--export([create_queue/2, create_queue/3, create_queue/4]).
--export([delete_queue/2, delete_queue/3, delete_queue/4]).
--export([put_message/3, put_message/4, put_message/5]).
--export([get_messages/2, get_messages/3, get_messages/4]).
--export([peek_messages/2, peek_messages/3, peek_messages/4]).
--export([delete_message/4, delete_message/5, delete_message/6]).
--export([clear_messages/2, clear_messages/3, clear_messages/4]).
--export([update_message/4, update_message/5, update_message/6]).
+-export([list_queues/1, list_queues/2]).
+-export([set_queue_acl/3, set_queue_acl/4]).
+-export([get_queue_acl/2, get_queue_acl/3]).
+-export([create_queue/2, create_queue/3]).
+-export([delete_queue/2, delete_queue/3]).
+-export([put_message/3, put_message/4]).
+-export([get_messages/2, get_messages/3]).
+-export([peek_messages/2, peek_messages/3]).
+-export([delete_message/4, delete_message/5]).
+-export([clear_messages/2, clear_messages/3]).
+-export([update_message/4, update_message/5]).
 
 %% Blob API
--export([list_containers/1, list_containers/2, list_containers/3]).
--export([create_container/2, create_container/3, create_container/4]).
--export([delete_container/2, delete_container/3, delete_container/4]).
--export([lease_container/3, lease_container/4, lease_container/5]).
--export([list_blobs/2, list_blobs/3, list_blobs/4]).
--export([put_block_blob/4, put_block_blob/5, put_block_blob/6]).
--export([put_append_blob/3, put_append_blob/4, put_append_blob/5]).
--export([append_block/4, append_block/5, append_block/6]).
--export([put_page_blob/4, put_page_blob/5, put_page_blob/6]).
--export([get_blob/3, get_blob/4, get_blob/5]).
--export([snapshot_blob/3, snapshot_blob/4, snapshot_blob/5]).
--export([copy_blob/4, copy_blob/5, copy_blob/6]).
--export([delete_blob/3, delete_blob/4, delete_blob/5]).
--export([put_block/5, put_block/6, put_block/7]).
--export([put_block_list/4, put_block_list/5, put_block_list/6]).
--export([get_block_list/3, get_block_list/4, get_block_list/5]).
--export([acquire_blob_lease/4, acquire_blob_lease/5, acquire_blob_lease/7]).
+-export([list_containers/1, list_containers/2]).
+-export([create_container/2, create_container/3]).
+-export([delete_container/2, delete_container/3]).
+-export([lease_container/3, lease_container/4]).
+-export([list_blobs/2, list_blobs/3]).
+-export([put_block_blob/4, put_block_blob/5]).
+-export([put_append_blob/3, put_append_blob/4]).
+-export([append_block/4, append_block/5]).
+-export([put_page_blob/4, put_page_blob/5]).
+-export([get_blob/3, get_blob/4]).
+-export([snapshot_blob/3, snapshot_blob/4]).
+-export([copy_blob/4, copy_blob/5]).
+-export([delete_blob/3, delete_blob/4]).
+-export([put_block/5, put_block/6]).
+-export([put_block_list/4, put_block_list/5]).
+-export([get_block_list/3, get_block_list/4]).
+-export([acquire_blob_lease/4, acquire_blob_lease/5, acquire_blob_lease/6]).
 
 %% Table API
--export([list_tables/1, list_tables/3, new_table/2, delete_table/2]).
+-export([list_tables/1, list_tables/2, new_table/2, delete_table/2]).
 
 %% Host API
--export([get_host/3, get_host/4]).
+-export([get_host/3]).
 
 -type init_opts() :: #{
     account := string(),
@@ -121,11 +120,7 @@ list_queues(State) ->
         list_queues(State, []).
 
 -spec list_queues(state(), common_opts()) -> enum_parse_result(queue()).
-list_queues(State, Options) ->
-        list_queues(State, Options, ?gen_server_call_default_timeout).
-
--spec list_queues(state(), common_opts(), pos_integer()) -> enum_parse_result(queue()).
-list_queues(State, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+list_queues(State, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{params, [{comp, list}] ++ Options}],
         ReqContext = new_req_context(?queue_service, ReqOptions, State),
@@ -139,11 +134,7 @@ set_queue_acl(State, Queue, SignedId=#signed_id{}) ->
         set_queue_acl(State, Queue, SignedId, []).
 
 -spec set_queue_acl(state(), string(), signed_id(), list(queue_acl_opts())) -> {ok, created}.
-set_queue_acl(State, Queue, SignedId=#signed_id{}, Options) ->
-        set_queue_acl(State, Queue, SignedId, Options, ?gen_server_call_default_timeout).
-
--spec set_queue_acl(state(), string(), signed_id(), list(queue_acl_opts()), pos_integer()) -> {ok, created}.
-set_queue_acl(State, Queue, SignedId=#signed_id{}, Options, Timeout) when is_list(Options); is_integer(Timeout)->
+set_queue_acl(State, Queue, SignedId=#signed_id{}, Options) when is_list(Options)->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{method, put},
                       {path, string:to_lower(Queue)},
@@ -159,11 +150,7 @@ get_queue_acl(State, Queue) ->
         get_queue_acl(State, Queue, []).
 
 -spec get_queue_acl(state(), string(), list(queue_acl_opts())) -> {ok, no_acl} | {ok, signed_id()}.
-get_queue_acl(State, Queue, Options) ->
-        get_queue_acl(State, Queue, Options, ?gen_server_call_default_timeout).
-
--spec get_queue_acl(state(), string(), list(queue_acl_opts()), pos_integer()) -> {ok, no_acl} | {ok, signed_id()}.
-get_queue_acl(State, Queue, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+get_queue_acl(State, Queue, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{path, string:to_lower(Queue)},
                       {params, [{comp, acl}] ++ Options}],
@@ -175,9 +162,7 @@ get_queue_acl(State, Queue, Options, Timeout) when is_list(Options); is_integer(
 -spec create_queue(state(), string()) -> created_response() | already_created_response().
 create_queue(State, Queue) ->
         create_queue(State, Queue, []).
-create_queue(State, Queue, Options) ->
-        create_queue(State, Queue, Options, ?gen_server_call_default_timeout).
-create_queue(State, Queue, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+create_queue(State, Queue, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{method, put},
                       {path, string:to_lower(Queue)},
@@ -194,9 +179,7 @@ create_queue(State, Queue, Options, Timeout) when is_list(Options); is_integer(T
 
 delete_queue(State, Queue) ->
         delete_queue(State, Queue, []).
-delete_queue(State, Queue, Options) ->
-        delete_queue(State, Queue, Options, ?gen_server_call_default_timeout).
-delete_queue(State, Queue, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+delete_queue(State, Queue, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{method, delete},
                       {path, string:to_lower(Queue)},
@@ -208,9 +191,7 @@ delete_queue(State, Queue, Options, Timeout) when is_list(Options); is_integer(T
 
 put_message(State, Queue, Message) ->
         put_message(State, Queue, Message, []).
-put_message(State, Queue, Message, Options) ->
-        put_message(State, Queue, Message, Options, ?gen_server_call_default_timeout).
-put_message(State, Queue, Message, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+put_message(State, Queue, Message, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{method, post},
                       {path, lists:concat([string:to_lower(Queue), "/messages"])},
@@ -223,9 +204,7 @@ put_message(State, Queue, Message, Options, Timeout) when is_list(Options); is_i
 
 get_messages(State, Queue) ->
         get_messages(State, Queue, []).
-get_messages(State, Queue, Options) ->
-        get_messages(State, Queue, Options, ?gen_server_call_default_timeout).
-get_messages(State, Queue, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+get_messages(State, Queue, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{path, string:to_lower(Queue) ++ "/messages"},
                       {params, Options}],
@@ -236,9 +215,7 @@ get_messages(State, Queue, Options, Timeout) when is_list(Options); is_integer(T
 
 peek_messages(State, Queue) ->
         peek_messages(State, Queue, []).
-peek_messages(State, Queue, Options) ->
-        peek_messages(State, Queue, Options, ?gen_server_call_default_timeout).
-peek_messages(State, Queue, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+peek_messages(State, Queue, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{path, string:to_lower(Queue) ++ "/messages"},
                       {params, [{peek_only, true}] ++ Options}],
@@ -249,9 +226,7 @@ peek_messages(State, Queue, Options, Timeout) when is_list(Options); is_integer(
 
 delete_message(State, Queue, MessageId, PopReceipt) ->
         delete_message(State, Queue, MessageId, PopReceipt, []).
-delete_message(State, Queue, MessageId, PopReceipt, Options)  ->
-        delete_message(State, Queue, MessageId, PopReceipt, Options, ?gen_server_call_default_timeout).
-delete_message(State, Queue, MessageId, PopReceipt, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+delete_message(State, Queue, MessageId, PopReceipt, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{method, delete},
                       {path, lists:concat([string:to_lower(Queue), "/messages/", MessageId])},
@@ -263,9 +238,7 @@ delete_message(State, Queue, MessageId, PopReceipt, Options, Timeout) when is_li
 
 clear_messages(State, Queue) ->
         clear_messages(State, Queue, []).
-clear_messages(State, Queue, Options) ->
-        clear_messages(State, Queue, Options, ?gen_server_call_default_timeout).
-clear_messages(State, Queue, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+clear_messages(State, Queue, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?queue_service, State),
         ReqOptions = [{method, delete},
                       {path, string:to_lower(Queue) ++ "/messages"},
@@ -277,9 +250,7 @@ clear_messages(State, Queue, Options, Timeout) when is_list(Options); is_integer
 
 update_message(State, Queue, UpdatedMessage=#queue_message{}, VisibilityTimeout) ->
         update_message(State, Queue, UpdatedMessage, VisibilityTimeout, []).
-update_message(State, Queue, UpdatedMessage=#queue_message{}, VisibilityTimeout, Options) ->
-        update_message(State, Queue, UpdatedMessage, VisibilityTimeout, Options, ?gen_server_call_default_timeout).
-update_message(State, Queue, UpdatedMessage=#queue_message{}, VisibilityTimeout, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+update_message(State, Queue, UpdatedMessage=#queue_message{}, VisibilityTimeout, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?queue_service, State),
         Params = [{pop_receipt, UpdatedMessage#queue_message.pop_receipt},
                   {message_visibility_timeout, integer_to_list(VisibilityTimeout)}],
@@ -298,9 +269,7 @@ update_message(State, Queue, UpdatedMessage=#queue_message{}, VisibilityTimeout,
 
 list_containers(State) ->
         list_containers(State, []).
-list_containers(State, Options) ->
-        list_containers(State, Options, ?gen_server_call_default_timeout).
-list_containers(State, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+list_containers(State, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?blob_service, State),
         ReqOptions = [{params, [{comp, list}] ++ Options}],
         ReqContext = new_req_context(?blob_service, ReqOptions, State),
@@ -315,9 +284,7 @@ list_containers(State, Options, Timeout) when is_list(Options); is_integer(Timeo
 
 create_container(State, Name) ->
         create_container(State, Name, []).
-create_container(State, Name, Options) ->
-        create_container(State, Name, Options, ?gen_server_call_default_timeout).
-create_container(State, Name, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+create_container(State, Name, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?blob_service, State),
         ReqOptions = [{method, put},
                       {path, Name},
@@ -331,9 +298,7 @@ create_container(State, Name, Options, Timeout) when is_list(Options); is_intege
 
 delete_container(State, Name) ->
         delete_container(State, Name, []).
-delete_container(State, Name, Options) ->
-        delete_container(State, Name, Options, ?gen_server_call_default_timeout).
-delete_container(State, Name, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+delete_container(State, Name, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?blob_service, State),
         ReqOptions = [{method, delete},
                       {path, Name},
@@ -345,9 +310,7 @@ delete_container(State, Name, Options, Timeout) when is_list(Options); is_intege
 
 put_block_blob(State, Container, Name, Data) ->
         put_block_blob(State, Container, Name, Data, []).
-put_block_blob(State, Container, Name, Data, Options) ->
-        put_block_blob(State, Container, Name, Data, Options, ?gen_server_call_default_timeout).
-put_block_blob(State, Container, Name, Data, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+put_block_blob(State, Container, Name, Data, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?blob_service, State),
         ReqOptions = [{method, put},
                       {path, lists:concat([Container, "/", Name])},
@@ -364,9 +327,7 @@ put_block_blob(State, Container, Name, Data, Options, Timeout) when is_list(Opti
 
 put_page_blob(State, Container, Name, ContentLength) ->
         put_page_blob(State, Container, Name, ContentLength, []).
-put_page_blob(State, Container, Name, ContentLength, Options) ->
-        put_page_blob(State, Container, Name, ContentLength, Options, ?gen_server_call_default_timeout).
-put_page_blob(State, Container, Name, ContentLength, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+put_page_blob(State, Container, Name, ContentLength, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?blob_service, State),
         Params = [{blob_type, page_blob},
                   {blob_content_length, ContentLength}],
@@ -380,9 +341,7 @@ put_page_blob(State, Container, Name, ContentLength, Options, Timeout) when is_l
 
 put_append_blob(State, Container, Name) ->
         put_append_blob(State, Container, Name, []).
-put_append_blob(State, Container, Name, Options) ->
-        put_append_blob(State, Container, Name, Options, ?gen_server_call_default_timeout).
-put_append_blob(State, Container, Name, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+put_append_blob(State, Container, Name, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?blob_service, State),
         Params = [{blob_type, append_blob}],
         ReqOptions = [{method, put},
@@ -399,9 +358,7 @@ put_append_blob(State, Container, Name, Options, Timeout) when is_list(Options);
 
 append_block(State, Container, Name, Data) ->
         append_block(State, Container, Name, Data, []).
-append_block(State, Container, Name, Data, Options) ->
-        append_block(State, Container, Name, Data, Options, ?gen_server_call_default_timeout).
-append_block(State, Container, Name, Data, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+append_block(State, Container, Name, Data, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?blob_service, State),
         Params = [{comp, "appendblock"}],
         ReqOptions = [{method, put},
@@ -415,9 +372,7 @@ append_block(State, Container, Name, Data, Options, Timeout) when is_list(Option
 
 list_blobs(State, Container) ->
         list_blobs(State, Container, []).
-list_blobs(State, Container, Options) ->
-        list_blobs(State, Container, Options, ?gen_server_call_default_timeout).
-list_blobs(State, Container, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+list_blobs(State, Container, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?blob_service, State),
         Params = [{comp, list},
                   {res_type, container}],
@@ -431,9 +386,7 @@ list_blobs(State, Container, Options, Timeout) when is_list(Options); is_integer
 
 get_blob(State, Container, Blob) ->
         get_blob(State, Container, Blob, []).
-get_blob(State, Container, Blob, Options) ->
-        get_blob(State, Container, Blob, Options, ?gen_server_call_default_timeout).
-get_blob(State, Container, Blob, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+get_blob(State, Container, Blob, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?blob_service, State),
         ReqOptions = [{path, lists:concat([Container, "/", Blob])},
                       {params, Options}],
@@ -450,9 +403,7 @@ get_blob(State, Container, Blob, Options, Timeout) when is_list(Options); is_int
 
 snapshot_blob(State, Container, Blob) ->
         snapshot_blob(State, Container, Blob, []).
-snapshot_blob(State, Container, Blob, Options) ->
-        snapshot_blob(State, Container, Blob, Options, ?gen_server_call_default_timeout).
-snapshot_blob(State, Container, Blob, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+snapshot_blob(State, Container, Blob, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?blob_service, State),
         ReqOptions = [{method, put},
                       {path, lists:concat([Container, "/", Blob])},
@@ -464,9 +415,7 @@ snapshot_blob(State, Container, Blob, Options, Timeout) when is_list(Options); i
 
 copy_blob(State, Container, Blob, Source) ->
         copy_blob(State, Container, Blob, Source, []).
-copy_blob(State, Container, Blob, Source, Options) ->
-        copy_blob(State, Container, Blob, Source, Options, ?gen_server_call_default_timeout).
-copy_blob(State, Container, Blob, Source, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+copy_blob(State, Container, Blob, Source, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?blob_service, State),
         ReqOptions = [{method, put},
                       {path, lists:concat([Container, "/", Blob])},
@@ -478,9 +427,7 @@ copy_blob(State, Container, Blob, Source, Options, Timeout) when is_list(Options
 
 delete_blob(State, Container, Blob) ->
         delete_blob(State, Container, Blob, []).
-delete_blob(State, Container, Blob, Options) ->
-        delete_blob(State, Container, Blob, Options, ?gen_server_call_default_timeout).
-delete_blob(State, Container, Blob, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+delete_blob(State, Container, Blob, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?blob_service, State),
         ReqOptions = [{method, delete},
                       {path, lists:concat([Container, "/", Blob])},
@@ -492,9 +439,7 @@ delete_blob(State, Container, Blob, Options, Timeout) when is_list(Options); is_
 
 put_block(State, Container, Blob, BlockId, BlockContent) ->
         put_block(State, Container, Blob, BlockId, BlockContent, []).
-put_block(State, Container, Blob, BlockId, BlockContent, Options) ->
-        put_block(State, Container, Blob, BlockId, BlockContent, Options, ?gen_server_call_default_timeout).
-put_block(State, Container, Blob, BlockId, BlockContent, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+put_block(State, Container, Blob, BlockId, BlockContent, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?blob_service, State),
         Params = [{comp, block},
                   {blob_block_id, base64:encode_to_string(BlockId)}],
@@ -509,9 +454,7 @@ put_block(State, Container, Blob, BlockId, BlockContent, Options, Timeout) when 
 
 put_block_list(State, Container, Blob, BlockRefs) ->
         put_block_list(State, Container, Blob, BlockRefs, []).
-put_block_list(State, Container, Blob, BlockRefs, Options) ->
-        put_block_list(State, Container, Blob, BlockRefs, Options, ?gen_server_call_default_timeout).
-put_block_list(State, Container, Blob, BlockRefs, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+put_block_list(State, Container, Blob, BlockRefs, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?blob_service, State),
         ReqOptions = [{method, put},
                       {path, lists:concat([Container, "/", Blob])},
@@ -524,9 +467,7 @@ put_block_list(State, Container, Blob, BlockRefs, Options, Timeout) when is_list
 
 get_block_list(State, Container, Blob) ->
         get_block_list(State, Container, Blob, []).
-get_block_list(State, Container, Blob, Options) ->
-        get_block_list(State, Container, Blob, Options, ?gen_server_call_default_timeout).
-get_block_list(State, Container, Blob, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+get_block_list(State, Container, Blob, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?blob_service, State),
         ReqOptions = [{path, lists:concat([Container, "/", Blob])},
                       {params, [{comp, "blocklist"}] ++ Options}],
@@ -539,8 +480,8 @@ get_block_list(State, Container, Blob, Options, Timeout) when is_list(Options); 
 acquire_blob_lease(State, Container, Blob, Duration) ->
         acquire_blob_lease(State, Container, Blob, Duration, []).
 acquire_blob_lease(State, Container, Blob, Duration, Options) ->
-        acquire_blob_lease(State, Container, Blob, "", Duration, Options, ?gen_server_call_default_timeout).
-acquire_blob_lease(State, Container, Blob, ProposedId, Duration, Options, Timeout) when is_list(Options); is_integer(Timeout) ->
+        acquire_blob_lease(State, Container, Blob, "", Duration, Options).
+acquire_blob_lease(State, Container, Blob, ProposedId, Duration, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?blob_service, State),
 
         Params = [{lease_action, acquire},
@@ -558,9 +499,7 @@ acquire_blob_lease(State, Container, Blob, ProposedId, Duration, Options, Timeou
 
 lease_container(State, Name, Mode) ->
         lease_container(State, Name, Mode, []).
-lease_container(State, Name, Mode, Options) ->
-        lease_container(State, Name, Mode, Options, ?gen_server_call_default_timeout).
-lease_container(State, Name, Mode, Options, Timeout) when is_atom(Mode); is_list(Options); is_integer(Timeout) ->
+lease_container(State, Name, Mode, Options) when is_atom(Mode), is_list(Options) ->
         ServiceContext = new_service_context(?blob_service, State),
         Params = [{comp, lease},
                   {res_type, container},
@@ -578,8 +517,8 @@ lease_container(State, Name, Mode, Options, Timeout) when is_atom(Mode); is_list
 %%====================================================================
 
 list_tables(State) ->
-        list_tables(State, [], ?gen_server_call_default_timeout).
-list_tables(State, Options, Timeout) when is_list(Options); is_integer(Timeout)->
+        list_tables(State, []).
+list_tables(State, Options) when is_list(Options) ->
         ServiceContext = new_service_context(?table_service, State),
         ReqOptions = [{path, "Tables"},
                       {params, Options}],
@@ -737,19 +676,19 @@ build_uri_base(Service, #state{account = Account}) ->
 
 get_host(Service, Account) ->
         lists:concat([Account, ".", erlang:atom_to_list(Service), ".core.windows.net"]).
+
 get_host(State, Service, []) ->
         Domain  = ".core.windows.net",
-        Timeout = ?gen_server_call_default_timeout,
-        get_host(State, Service, Domain, Timeout);
+        do_get_host(State, Service, Domain);
 get_host(State, Service, Timeout) when is_integer(Timeout) ->
         Domain  = ".core.windows.net",
-        get_host(State, Service, Domain, Timeout);
+        do_get_host(State, Service, Domain);
 get_host(State, Service, Domain) when is_list(Domain) ->
-        Timeout = ?gen_server_call_default_timeout,
-        get_host(State, Service, Domain, Timeout).
-get_host(State, Service, Domain, Timeout) when is_list(Domain), is_integer(Timeout) ->
+        do_get_host(State, Service, Domain).
+
+do_get_host(State, Service, Domain) when is_list(Domain), is_atom(Service) ->
         Account = State#state.account,
-        lists:concat([Account, ".", erlang:atom_to_list(Service), Domain]).
+        lists:concat([Account, ".", atom_to_list(Service), Domain]).
 
 -spec canonicalize_headers([string()]) -> string().
 canonicalize_headers(Headers) ->
